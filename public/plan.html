@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Plan a Trip - TripAI</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="nav">
+  <a href="/dashboard.html" class="nav-brand">✈️ TripAI</a>
+  <div class="nav-right">
+    <a href="/dashboard.html" class="btn btn-ghost btn-sm">← My trips</a>
+  </div>
+</nav>
+
+<div class="overlay" id="loadingOverlay" style="display:none">
+  <div class="spinner" style="width:48px;height:48px;border-width:4px;border-color:rgba(37,99,235,.15);border-top-color:var(--blue)"></div>
+  <h3>AI is planning your trip…</h3>
+  <p id="loadingMsg">Researching destinations and attractions</p>
+</div>
+
+<div class="container-sm" style="padding-top:32px">
+  <div style="margin-bottom:24px">
+    <h1 style="font-size:26px;font-weight:800;margin-bottom:4px">Plan a new trip</h1>
+    <p style="color:var(--muted)">Fill in the details and our AI will build your full itinerary</p>
+  </div>
+
+  <!-- STEPS indicator -->
+  <div class="steps" id="stepsBar">
+    <div class="step-item" id="step1item">
+      <div class="step-num active" id="s1n">1</div>
+      <span class="step-name active" id="s1l">Basics</span>
+    </div>
+    <div class="step-line" id="line12"></div>
+    <div class="step-item" id="step2item">
+      <div class="step-num idle" id="s2n">2</div>
+      <span class="step-name idle" id="s2l">Preferences</span>
+    </div>
+    <div class="step-line" id="line23"></div>
+    <div class="step-item" id="step3item">
+      <div class="step-num idle" id="s3n">3</div>
+      <span class="step-name idle" id="s3l">Review &amp; Generate</span>
+    </div>
+  </div>
+
+  <div id="alertBox" class="alert alert-err" style="display:none"></div>
+
+  <!-- STEP 1: BASICS -->
+  <div id="step1" class="card">
+    <h2 style="font-size:17px;font-weight:700;margin-bottom:18px">Where and when?</h2>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">From (origin)</label>
+        <input type="text" id="origin" class="form-input" placeholder="e.g. Delhi, India" autocomplete="off">
+        <div class="form-hint">Your starting city or country</div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">To (destination)</label>
+        <input type="text" id="destination" class="form-input" placeholder="e.g. Japan" autocomplete="off">
+        <div class="form-hint">Where do you want to go?</div>
+      </div>
+    </div>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Start date</label>
+        <input type="date" id="startDate" class="form-input">
+      </div>
+      <div class="form-group">
+        <label class="form-label">End date</label>
+        <input type="date" id="endDate" class="form-input">
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">Number of travelers</label>
+      <select id="travelers" class="form-input form-select">
+        <option value="1">1 traveler (solo)</option>
+        <option value="2" selected>2 travelers (couple)</option>
+        <option value="3">3 travelers</option>
+        <option value="4">4 travelers</option>
+        <option value="5+">5+ travelers (group)</option>
+      </select>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:8px">
+      <button class="btn btn-primary btn-lg" onclick="goStep(2)">Next: Preferences →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: PREFERENCES -->
+  <div id="step2" class="card" style="display:none">
+    <h2 style="font-size:17px;font-weight:700;margin-bottom:18px">Tell us your preferences</h2>
+    
+    <div class="form-group">
+      <label class="form-label">Budget level</label>
+      <div class="chip-group" id="budgetChips">
+        <div class="chip" onclick="toggleChip(this,'budget')" data-val="budget">💰 Budget</div>
+        <div class="chip on" onclick="toggleChip(this,'budget')" data-val="moderate">⭐ Moderate</div>
+        <div class="chip" onclick="toggleChip(this,'budget')" data-val="luxury">✨ Luxury</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Interests <span style="color:var(--muted);font-weight:400">(pick all that apply)</span></label>
+      <div class="chip-group" id="interestChips">
+        <div class="chip" onclick="toggleMulti(this)">🏛️ Culture &amp; History</div>
+        <div class="chip" onclick="toggleMulti(this)">🍜 Food &amp; Cuisine</div>
+        <div class="chip" onclick="toggleMulti(this)">🏖️ Beaches</div>
+        <div class="chip" onclick="toggleMulti(this)">🏔️ Nature &amp; Hiking</div>
+        <div class="chip" onclick="toggleMulti(this)">🛍️ Shopping</div>
+        <div class="chip" onclick="toggleMulti(this)">🎭 Nightlife</div>
+        <div class="chip" onclick="toggleMulti(this)">🎨 Art &amp; Museums</div>
+        <div class="chip" onclick="toggleMulti(this)">🕌 Architecture</div>
+        <div class="chip" onclick="toggleMulti(this)">🌿 Adventure &amp; Sports</div>
+        <div class="chip" onclick="toggleMulti(this)">📸 Photography</div>
+        <div class="chip" onclick="toggleMulti(this)">🧘 Wellness &amp; Spas</div>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Dietary requirements</label>
+      <div class="chip-group" id="dietChips">
+        <div class="chip on" onclick="toggleChip(this,'diet')" data-val="none">No restrictions</div>
+        <div class="chip" onclick="toggleChip(this,'diet')" data-val="vegetarian">🥗 Vegetarian</div>
+        <div class="chip" onclick="toggleChip(this,'diet')" data-val="vegan">🌱 Vegan</div>
+        <div class="chip" onclick="toggleChip(this,'diet')" data-val="halal">☪️ Halal</div>
+        <div class="chip" onclick="toggleChip(this,'diet')" data-val="gluten-free">🌾 Gluten-free</div>
+      </div>
+    </div>
+
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Travel pace</label>
+        <select id="pace" class="form-input form-select">
+          <option value="relaxed">🐢 Relaxed (fewer places, more depth)</option>
+          <option value="moderate" selected>⚖️ Moderate (balanced)</option>
+          <option value="packed">🚀 Packed (see everything!)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Accommodation style</label>
+        <select id="accommodation" class="form-input form-select">
+          <option value="hostel">🏕️ Hostel / Budget</option>
+          <option value="mid-range hotel" selected>🏨 Mid-range hotel</option>
+          <option value="boutique hotel">🏩 Boutique hotel</option>
+          <option value="luxury hotel">⭐ Luxury hotel</option>
+          <option value="apartment">🏠 Apartment / Airbnb</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="withBaby" style="width:16px;height:16px;accent-color:var(--blue)">
+        Traveling with a baby or young infant
+      </label>
+      <div class="form-hint">We'll note stroller accessibility, nursing facilities, and family-friendly options</div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">Anything else? <span style="color:var(--muted);font-weight:400">(optional)</span></label>
+      <textarea id="notes" class="form-input" rows="2" placeholder="e.g. We love street food markets, prefer morning starts, have a 5-month-old so need ground floor hotels…" style="resize:vertical"></textarea>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;margin-top:8px;gap:10px">
+      <button class="btn btn-ghost" onclick="goStep(1)">← Back</button>
+      <button class="btn btn-primary btn-lg" onclick="goStep(3)">Next: Review →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: REVIEW & GENERATE -->
+  <div id="step3" class="card" style="display:none">
+    <h2 style="font-size:17px;font-weight:700;margin-bottom:18px">Review your trip details</h2>
+    <div id="reviewContent" style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:20px;font-size:14px;line-height:1.8"></div>
+    
+    <div class="alert alert-info">
+      <span>🤖</span>
+      <div>Our AI will generate a complete day-by-day itinerary with real places, GPS coordinates, costs, and booking links. This takes about 15-30 seconds.</div>
+    </div>
+
+    <div style="display:flex;justify-content:space-between;margin-top:16px;gap:10px">
+      <button class="btn btn-ghost" onclick="goStep(2)">← Edit</button>
+      <button class="btn btn-primary btn-lg" onclick="generate()" id="genBtn">🤖 Generate my itinerary →</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
+const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+let currentStep = 1;
+
+// Auth guard
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) window.location.href = '/';
+})();
+
+// Set min date to today
+const today = new Date().toISOString().split('T')[0];
+document.getElementById('startDate').min = today;
+document.getElementById('endDate').min = today;
+document.getElementById('startDate').addEventListener('change', function() {
+  document.getElementById('endDate').min = this.value;
+  if (document.getElementById('endDate').value < this.value)
+    document.getElementById('endDate').value = this.value;
+});
+
+function toggleChip(el, group) {
+  document.querySelectorAll('#' + group + 'Chips .chip').forEach(c => c.classList.remove('on'));
+  el.classList.add('on');
+}
+function toggleMulti(el) { el.classList.toggle('on'); }
+
+function getSelected(groupId) {
+  const chips = document.querySelectorAll('#' + groupId + ' .chip.on');
+  return Array.from(chips).map(c => c.dataset.val || c.textContent.replace(/^[^a-zA-Z]+/, '').trim());
+}
+function getMultiSelected(groupId) {
+  const chips = document.querySelectorAll('#' + groupId + ' .chip.on');
+  return Array.from(chips).map(c => c.textContent.replace(/^[^\w]+/, '').trim());
+}
+
+function showAlert(msg) {
+  const el = document.getElementById('alertBox');
+  el.textContent = msg;
+  el.style.display = 'flex';
+}
+function clearAlert() { document.getElementById('alertBox').style.display = 'none'; }
+
+function updateSteps(n) {
+  [1,2,3].forEach(i => {
+    const status = i < n ? 'done' : i === n ? 'active' : 'idle';
+    document.getElementById('s'+i+'n').className = 'step-num ' + status;
+    document.getElementById('s'+i+'l').className = 'step-name ' + status;
+    if (status === 'done') document.getElementById('s'+i+'n').textContent = '✓';
+    else document.getElementById('s'+i+'n').textContent = i;
+  });
+  document.getElementById('line12').className = 'step-line' + (n > 1 ? ' done' : '');
+  document.getElementById('line23').className = 'step-line' + (n > 2 ? ' done' : '');
+}
+
+function goStep(n) {
+  clearAlert();
+  if (n === 2) {
+    const origin = document.getElementById('origin').value.trim();
+    const dest = document.getElementById('destination').value.trim();
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    if (!origin || !dest) return showAlert('Please enter both origin and destination.');
+    if (!start || !end) return showAlert('Please select travel dates.');
+    if (end < start) return showAlert('End date must be after start date.');
+    const days = Math.ceil((new Date(end) - new Date(start))/86400000) + 1;
+    if (days > 30) return showAlert('Max 30 days per trip for best results.');
+  }
+  if (n === 3) {
+    const origin = document.getElementById('origin').value.trim();
+    const dest = document.getElementById('destination').value.trim();
+    const start = document.getElementById('startDate').value;
+    const end = document.getElementById('endDate').value;
+    const days = Math.ceil((new Date(end) - new Date(start))/86400000) + 1;
+    const travelers = document.getElementById('travelers').value;
+    const budget = getSelected('budgetChips')[0] || 'moderate';
+    const interests = getMultiSelected('interestChips');
+    const diet = getSelected('dietChips')[0] || 'none';
+    const pace = document.getElementById('pace').value;
+    const accom = document.getElementById('accommodation').value;
+    const baby = document.getElementById('withBaby').checked;
+
+    document.getElementById('reviewContent').innerHTML = `
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><strong>From</strong><br>${origin}</div>
+        <div><strong>To</strong><br>${dest}</div>
+        <div><strong>Dates</strong><br>${new Date(start).toDateString()} → ${new Date(end).toDateString()}</div>
+        <div><strong>Duration</strong><br>${days} days</div>
+        <div><strong>Travelers</strong><br>${travelers}</div>
+        <div><strong>Budget</strong><br>${budget.charAt(0).toUpperCase()+budget.slice(1)}</div>
+        <div><strong>Pace</strong><br>${pace.charAt(0).toUpperCase()+pace.slice(1)}</div>
+        <div><strong>Diet</strong><br>${diet}</div>
+        ${interests.length ? '<div style="grid-column:1/-1"><strong>Interests</strong><br>' + interests.join(', ') + '</div>' : ''}
+        ${baby ? '<div><strong>Special</strong><br>Traveling with infant 👶</div>' : ''}
+      </div>`;
+  }
+  [1,2,3].forEach(i => document.getElementById('step'+i).style.display = i === n ? 'block' : 'none');
+  currentStep = n;
+  updateSteps(n);
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+const loadingMsgs = [
+  'Researching destinations and top attractions…',
+  'Finding the best local restaurants for your diet…',
+  'Mapping transport routes between cities…',
+  'Calculating realistic timing for each day…',
+  'Adding insider tips and booking advice…',
+  'Building your interactive itinerary map…'
+];
+let msgIdx = 0;
+
+async function generate() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = '/'; return; }
+
+  const btn = document.getElementById('genBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Generating…';
+  document.getElementById('loadingOverlay').style.display = 'flex';
+
+  const msgInterval = setInterval(() => {
+    document.getElementById('loadingMsg').textContent = loadingMsgs[msgIdx++ % loadingMsgs.length];
+  }, 3500);
+
+  try {
+    const origin = document.getElementById('origin').value.trim();
+    const destination = document.getElementById('destination').value.trim();
+    const startDate = document.getElementById('startDate').value;
+    const endDate = document.getElementById('endDate').value;
+    const travelers = document.getElementById('travelers').value;
+    const preferences = {
+      budget: getSelected('budgetChips')[0] || 'moderate',
+      interests: getMultiSelected('interestChips'),
+      dietary: getSelected('dietChips')[0] || 'none',
+      pace: document.getElementById('pace').value,
+      accommodation: document.getElementById('accommodation').value,
+      withBaby: document.getElementById('withBaby').checked,
+      notes: document.getElementById('notes').value.trim()
+    };
+
+    const res = await fetch('/api/generate-trip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ origin, destination, startDate, endDate, travelers, preferences })
+    });
+    const data = await res.json();
+
+    if (!data.success) throw new Error(data.error || 'Generation failed');
+
+    // Save to Supabase
+    const { data: saved, error: dbErr } = await sb.from('trips').insert({
+      user_id: session.user.id,
+      title: data.itinerary.title || (destination + ' Trip'),
+      origin, destination, start_date: startDate, end_date: endDate,
+      travelers: parseInt(travelers) || 1,
+      preferences,
+      itinerary: data.itinerary
+    }).select('id').single();
+
+    if (dbErr) throw new Error('Failed to save trip: ' + dbErr.message);
+
+    clearInterval(msgInterval);
+    window.location.href = '/trip.html?id=' + saved.id;
+  } catch (err) {
+    clearInterval(msgInterval);
+    document.getElementById('loadingOverlay').style.display = 'none';
+    btn.disabled = false;
+    btn.innerHTML = '🤖 Generate my itinerary →';
+    showAlert('Error: ' + err.message + '. Please try again.');
+  }
+}
+</script>
+</body>
+</html>

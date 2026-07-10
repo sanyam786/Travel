@@ -1,0 +1,8 @@
+{
+  "name": "ai-trip-planner",
+  "version": "1.0.0",
+  "description": "AI-powered travel itinerary planner with interactive maps",
+  "dependencies": {
+    "groq-sdk": "^0.7.0"
+  }
+}

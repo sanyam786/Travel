@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trip - TripAI</title>
+<link rel="stylesheet" href="/css/style.css">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+</head>
+<body>
+<nav class="nav">
+  <a href="/dashboard.html" class="nav-brand">✈️ TripAI</a>
+  <div class="nav-right" id="navRight">
+    <a href="/dashboard.html" class="btn btn-ghost btn-sm">← My trips</a>
+    <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
+  </div>
+</nav>
+
+<div id="tripApp">
+  <!-- SIDEBAR -->
+  <div id="sidebar">
+    <div class="sb-hdr">
+      <h2 id="tripTitle">Loading…</h2>
+      <p id="tripMeta"></p>
+    </div>
+    <div class="day-tabs" id="dayTabs"></div>
+    <div class="sb-body" id="sbBody">
+      <div style="text-align:center;padding:40px 20px">
+        <div class="spinner spinner-blue" style="width:32px;height:32px;margin:0 auto 12px;border-width:3px"></div>
+        <p style="color:var(--muted);font-size:14px">Loading itinerary…</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAP -->
+  <div id="mapDiv">
+    <div id="map"></div>
+    <div class="map-legend">
+      <h4>Transport</h4>
+      <div class="leg-row"><div class="leg-line" style="background:#EF4444;border-top:2.5px dashed #EF4444;height:0"></div> Flight</div>
+      <div class="leg-row"><div class="leg-line" style="background:#10B981"></div> Train</div>
+      <div class="leg-row"><div class="leg-line" style="background:#F59E0B;border-top:2.5px dotted #F59E0B;height:0"></div> Car/Bus</div>
+      <div class="leg-row"><div class="leg-line" style="background:#6B7280"></div> Other</div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
+const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let map, markersLayer, routesLayer, tripData;
+let activeDay = 'all';
+const markersByPlaceId = {};
+
+const CAT_ICONS = {
+  attraction:'🏛️', restaurant:'🍽️', hotel:'🏨', museum:'🎨',
+  beach:'🏖️', park:'🌿', market:'🛍️', viewpoint:'👁️',
+  transport:'🚉', default:'📍'
+};
+const TRANSPORT_ICONS = {
+  flight:'✈️', train:'🚄', car:'🚗', bus:'🚌', boat:'⛵', walk:'🚶', ferry:'⛴️'
+};
+const CITY_GRADIENTS = [
+  ['#2563EB','#7C3AED'],['#DC2626','#EA580C'],['#059669','#0891B2'],
+  ['#7C3AED','#DB2777'],['#D97706','#DC2626'],['#0891B2','#2563EB'],
+  ['#1D4ED8','#059669'],['#BE185D','#7C3AED']
+];
+
+function dayColor(idx) {
+  const [c1] = CITY_GRADIENTS[idx % CITY_GRADIENTS.length];
+  return c1;
+}
+
+// ---- MAP INIT ----
+function initMap() {
+  map = L.map('map', { zoomControl: true }).setView([20, 0], 2);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+    attribution: '© CartoDB © OSM', subdomains: 'abcd', maxZoom: 19
+  }).addTo(map);
+  map.zoomControl.setPosition('topright');
+  markersLayer = L.layerGroup().addTo(map);
+  routesLayer = L.layerGroup().addTo(map);
+}
+
+function mkIcon(emoji, color) {
+  return L.divIcon({
+    className: '',
+    html: '<div style="width:34px;height:34px;border-radius:50%;background:'+color+';border:3px solid #fff;display:flex;align-items:center;justify-content:center;font-size:15px;box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;">'+emoji+'</div>',
+    iconSize: [34,34], iconAnchor: [17,17]
+  });
+}
+
+function mkPopup(place, color) {
+  const icon = CAT_ICONS[place.category] || CAT_ICONS.default;
+  return '<div><div class="popup-name">'+icon+' '+place.name+'</div>'
+    +(place.description?'<div class="popup-desc">'+place.description.substring(0,120)+'…</div>':'')
+    +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
+    +(place.cost?'<span class="badge badge-blue">'+place.cost+'</span>':'')
+    +(place.duration?'<span class="badge badge-gray">⏱ '+place.duration+'</span>':'')
+    +(place.bookingRequired?'<span class="badge badge-amber">🎟 Book required</span>':'')
+    +'</div>'
+    +(place.bookingUrl?'<a href="'+place.bookingUrl+'" target="_blank" class="popup-book">Book tickets →</a>':'')
+    +'</div>';
+}
+
+function drawRoutes(days) {
+  routesLayer.clearLayers();
+  const allPlaces = days.flatMap(d => d.places || []);
+  const byDay = {};
+  days.forEach((d,i) => byDay[i] = (d.places||[]).filter(p=>p.lat&&p.lng));
+
+  // Draw transport lines between consecutive days
+  for (let i = 1; i < days.length; i++) {
+    const prev = byDay[i-1]; const curr = byDay[i];
+    if (!prev.length || !curr.length) continue;
+    const from = [prev[0].lat, prev[0].lng];
+    const to = [curr[0].lat, curr[0].lng];
+    if (from[0]===to[0] && from[1]===to[1]) continue;
+    const t = days[i].transport;
+    const mode = t?.mode || 'other';
+    const col = mode==='flight'?'#EF4444':mode==='train'?'#10B981':mode==='car'||mode==='bus'?'#F59E0B':'#6B7280';
+    const dash = mode==='flight'?'10,8':mode==='car'||mode==='bus'?'4,7':null;
+    L.polyline([from,to],{color:col,weight:2.5,opacity:.75,dashArray:dash})
+      .addTo(routesLayer)
+      .bindTooltip((TRANSPORT_ICONS[mode]||'🚌')+' '+(t?.from||'')+' → '+(t?.to||''),{sticky:true});
+  }
+}
+
+function showAllMarkers(days) {
+  markersLayer.clearLayers();
+  const bounds = [];
+  days.forEach((day,di) => {
+    const col = dayColor(di);
+    (day.places||[]).forEach(p => {
+      if (!p.lat||!p.lng) return;
+      const icon = CAT_ICONS[p.category]||CAT_ICONS.default;
+      const m = L.marker([p.lat,p.lng],{icon:mkIcon(icon,col)}).addTo(markersLayer);
+      m.bindPopup(mkPopup(p,col),{maxWidth:260});
+      m.on('click',()=>highlightCard(p.id));
+      markersByPlaceId[p.id] = {marker:m, dayIdx:di};
+      bounds.push([p.lat,p.lng]);
+    });
+  });
+  if (bounds.length) map.fitBounds(bounds,{padding:[40,40],maxZoom:13});
+}
+
+function showDayMarkers(dayData, di) {
+  markersLayer.clearLayers();
+  const col = dayColor(di);
+  const bounds = [];
+  (dayData.places||[]).forEach(p => {
+    if (!p.lat||!p.lng) return;
+    const icon = CAT_ICONS[p.category]||CAT_ICONS.default;
+    const m = L.marker([p.lat,p.lng],{icon:mkIcon(icon,col)}).addTo(markersLayer);
+    m.bindPopup(mkPopup(p,col),{maxWidth:260});
+    m.on('click',()=>highlightCard(p.id));
+    markersByPlaceId[p.id] = {marker:m, dayIdx:di};
+    bounds.push([p.lat,p.lng]);
+  });
+  if (bounds.length) {
+    if (bounds.length===1) map.flyTo(bounds[0],14,{animate:true,duration:1});
+    else map.fitBounds(bounds,{padding:[60,60],maxZoom:14,animate:true,duration:1});
+  }
+}
+
+function highlightCard(id) {
+  document.querySelectorAll('.pitem').forEach(el=>el.classList.remove('on'));
+  const card = document.getElementById('card-'+id);
+  if (card) { card.classList.add('on'); card.scrollIntoView({behavior:'smooth',block:'nearest'}); }
+}
+
+function clickPlace(id) {
+  const info = markersByPlaceId[id];
+  if (info) {
+    map.flyTo(info.marker.getLatLng(),15,{animate:true,duration:1});
+    setTimeout(()=>info.marker.openPopup(),1100);
+  }
+  highlightCard(id);
+}
+
+// ---- SIDEBAR RENDER ----
+function renderDayTabs(days) {
+  const tabs = document.getElementById('dayTabs');
+  tabs.innerHTML = '<button class="dtab on" id="dtab-all" onclick="selectDay('all',-1)">All Days</button>'
+    + days.map((d,i)=>'<button class="dtab" id="dtab-'+i+'" onclick="selectDay('+i+','+i+')" style="">D'+(i+1)+'</button>').join('');
+}
+
+function selectDay(key, idx) {
+  activeDay = key;
+  document.querySelectorAll('.dtab').forEach(b=>{
+    b.classList.remove('on');
+    b.style.background='';b.style.borderColor='';b.style.color='';
+  });
+  const activeBtn = document.getElementById('dtab-'+key);
+  if (activeBtn) {
+    activeBtn.classList.add('on');
+    if (idx >= 0) {
+      const col = dayColor(idx);
+      activeBtn.style.background=col;activeBtn.style.borderColor=col;activeBtn.style.color='#fff';
+    } else {
+      activeBtn.style.background='var(--blue)';activeBtn.style.borderColor='var(--blue)';activeBtn.style.color='#fff';
+    }
+  }
+
+  if (key==='all') {
+    renderAllDays(tripData.days);
+    showAllMarkers(tripData.days);
+    drawRoutes(tripData.days);
+  } else {
+    const day = tripData.days[idx];
+    renderDay(day, idx);
+    showDayMarkers(day, idx);
+    routesLayer.clearLayers();
+  }
+}
+
+function renderDay(day, di) {
+  const col = dayColor(di);
+  const t = day.transport;
+  let html = '';
+
+  if (t && t.from) {
+    const tIcon = TRANSPORT_ICONS[t.mode]||'🚌';
+    html += '<div class="tcard"><div class="tcard-route">'+tIcon+' '+t.from+' → '+t.to+'</div>'
+      +'<div class="tcard-meta">'
+      +(t.duration?'<span>⏱ '+t.duration+'</span>':'')
+      +(t.estimatedCost?'<span>💰 '+t.estimatedCost+'</span>':'')
+      +'</div>'
+      +(t.notes?'<div style="font-size:12px;color:var(--muted);margin-top:5px;font-style:italic">'+t.notes+'</div>':'')
+      +(t.bookingUrl?'<a href="'+t.bookingUrl+'" target="_blank" style="font-size:12px;color:var(--blue);font-weight:600">Book '+t.mode+' →</a>':'')
+      +'</div>';
+  }
+
+  html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col+';margin-bottom:10px">'
+    +'Day '+(di+1)+' · '+(day.city||'')+', '+(day.country||'')+'</div>';
+
+  (day.places||[]).forEach(p => {
+    const pIcon = CAT_ICONS[p.category]||CAT_ICONS.default;
+    html += '<div class="pitem" id="card-'+p.id+'" onclick="clickPlace(''+p.id+'')">'
+      +'<div class="pitem-hdr"><div class="pitem-ico">'+pIcon+'</div>'
+      +'<div><div class="pitem-name">'+p.name+'</div>'
+      +'<div class="pitem-time">'+p.timeOfDay+' · '+p.duration+'</div></div></div>'
+      +'<div class="pitem-desc">'+(p.description||'').substring(0,100)+'…</div>'
+      +'<div class="pitem-tags">'
+      +(p.cost?'<span class="badge badge-blue">'+p.cost+'</span>':'')
+      +(p.bookingRequired?'<span class="badge badge-amber">🎟 Book ahead</span>':'')
+      +(p.babyFriendly===true?'<span class="badge badge-green">👶 Baby ok</span>':'')
+      +(p.babyFriendly===false?'<span class="badge badge-red">⚠ Carrier</span>':'')
+      +'</div>'
+      +(p.bookingUrl?'<a href="'+p.bookingUrl+'" target="_blank" class="btn btn-primary btn-sm" style="margin-top:8px;font-size:12px" onclick="event.stopPropagation()">Book →</a>':'')
+      +'</div>';
+  });
+
+  document.getElementById('sbBody').innerHTML = html;
+}
+
+function renderAllDays(days) {
+  const itin = tripData;
+  let html = '';
+
+  if (itin.urgentBookings && itin.urgentBookings.length) {
+    html += '<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px;margin-bottom:14px">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px">🚨 Book these first</div>';
+    itin.urgentBookings.forEach(u => {
+      html += '<div style="font-size:13px;margin-bottom:6px"><strong>'+u.what+'</strong> '
+        +'<span style="color:var(--muted);font-size:12px">— '+u.when+'</span>'
+        +(u.url?'<br><a href="'+u.url+'" target="_blank" style="font-size:12px;color:var(--blue)">Book here →</a>':'')+'</div>';
+    });
+    html += '</div>';
+  }
+
+  if (itin.budgetEstimate) {
+    const b = itin.budgetEstimate;
+    html += '<div style="background:var(--blue-l);border:1px solid #BFDBFE;border-radius:8px;padding:12px;margin-bottom:14px">'
+      +'<div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">💰 Budget estimate</div>'
+      +Object.entries(b).map(([k,v])=>'<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px solid #BFDBFE"><span>'+k.charAt(0).toUpperCase()+k.slice(1)+'</span><span style="font-weight:600">'+v+'</span></div>').join('')
+      +'</div>';
+  }
+
+  days.forEach((day,di) => {
+    const col = dayColor(di);
+    html += '<div style="margin-bottom:6px">'
+      +'<div style="font-size:12px;font-weight:700;color:'+col+';text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px;display:flex;align-items:center;gap:6px;cursor:pointer" onclick="selectDay('+di+','+di+')">'
+      +'<span style="width:22px;height:22px;border-radius:50%;background:'+col+';color:#fff;display:inline-flex;align-items:center;justify-content:center;font-size:11px">'+(di+1)+'</span>'
+      +' Day '+(di+1)+' · '+(day.city||'')+' <span style="color:var(--muted);font-weight:400;text-transform:none;font-size:11px">— '+(day.title||'')+'</span>'
+      +'</div>';
+    (day.places||[]).slice(0,3).forEach(p => {
+      const pIcon = CAT_ICONS[p.category]||CAT_ICONS.default;
+      html += '<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="clickPlace(''+p.id+'')">'
+        +'<span>'+pIcon+'</span><span>'+p.name+'</span>'
+        +(p.cost&&p.cost!=='Free'?'<span style="margin-left:auto;font-size:12px;color:var(--muted)">'+p.cost+'</span>':'')
+        +'</div>';
+    });
+    if ((day.places||[]).length > 3) {
+      html += '<div style="font-size:12px;color:var(--blue);padding:5px 0;cursor:pointer" onclick="selectDay('+di+','+di+')">+ '+((day.places.length-3))+' more → see full day</div>';
+    }
+    html += '</div>';
+  });
+
+  document.getElementById('sbBody').innerHTML = html;
+}
+
+// ---- LOAD TRIP ----
+async function loadTrip() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = '/'; return; }
+
+  const params = new URLSearchParams(window.location.search);
+  const tripId = params.get('id');
+  if (!tripId) { window.location.href = '/dashboard.html'; return; }
+
+  const { data: trip, error } = await sb.from('trips').select('*').eq('id',tripId).eq('user_id',session.user.id).single();
+  if (error || !trip) { alert('Trip not found'); window.location.href = '/dashboard.html'; return; }
+
+  tripData = trip.itinerary;
+  document.title = (tripData.title || trip.destination) + ' - TripAI';
+  document.getElementById('tripTitle').textContent = tripData.title || trip.destination;
+
+  const days = tripData.days?.length || 0;
+  const meta = [];
+  if (trip.start_date) meta.push(new Date(trip.start_date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'}));
+  if (days) meta.push(days+' days');
+  if (trip.travelers) meta.push(trip.travelers+' traveler'+(trip.travelers>1?'s':''));
+  document.getElementById('tripMeta').textContent = meta.join(' · ');
+
+  initMap();
+  renderDayTabs(tripData.days||[]);
+  renderAllDays(tripData.days||[]);
+  showAllMarkers(tripData.days||[]);
+  drawRoutes(tripData.days||[]);
+
+  // Active all-tab
+  const allTab = document.getElementById('dtab-all');
+  if (allTab) { allTab.style.background='var(--blue)';allTab.style.borderColor='var(--blue)';allTab.style.color='#fff'; }
+}
+
+loadTrip();
+</script>
+</body>
+</html>

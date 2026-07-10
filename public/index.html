@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TripAI - Plan Your Perfect Trip</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<!-- LANDING VIEW -->
+<div id="landing">
+  <nav class="nav">
+    <a href="/" class="nav-brand">✈️ TripAI</a>
+    <div class="nav-right">
+      <button class="btn btn-ghost btn-sm" onclick="showAuth('login')">Log in</button>
+      <button class="btn btn-primary btn-sm" onclick="showAuth('signup')">Sign up free</button>
+    </div>
+  </nav>
+  <div class="hero">
+    <h1>Plan any trip with <em>AI</em> in minutes</h1>
+    <p>Tell us where you want to go. Our AI builds a complete day-by-day itinerary with maps, bookings, costs, and tips.</p>
+    <div class="hero-btns">
+      <button class="btn btn-lg" style="background:#fff;color:var(--blue)" onclick="showAuth('signup')">Start planning for free →</button>
+      <button class="btn btn-lg" style="background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.4)" onclick="showAuth('login')">Log in</button>
+    </div>
+  </div>
+  <div class="features">
+    <div class="feat"><div class="feat-icon">🤖</div><h3>AI-Powered Itineraries</h3><p>Describe your dream trip and get a complete day-by-day plan with real places, costs, and booking links.</p></div>
+    <div class="feat"><div class="feat-icon">🗺️</div><h3>Interactive Maps</h3><p>See every place on a beautiful interactive map. Click any spot to get details and navigate your route.</p></div>
+    <div class="feat"><div class="feat-icon">✈️</div><h3>Transport Included</h3><p>Flights, trains, and driving routes are all planned and visualised — with estimated costs and booking tips.</p></div>
+    <div class="feat"><div class="feat-icon">💾</div><h3>Save & Revisit</h3><p>All your itineraries are saved to your account. Access them anywhere, share with family or travel companions.</p></div>
+  </div>
+  <div class="dest-strip">
+    <h2>Anywhere in the world</h2>
+    <p>From a weekend city break to a 3-week adventure — TripAI handles every destination</p>
+    <div class="dest-chips">
+      <span class="dest-chip">🇯🇵 Japan</span><span class="dest-chip">🇮🇹 Italy</span><span class="dest-chip">🇪🇸 Spain</span>
+      <span class="dest-chip">🇺🇸 USA</span><span class="dest-chip">🇫🇷 France</span><span class="dest-chip">🇬🇷 Greece</span>
+      <span class="dest-chip">🇹🇭 Thailand</span><span class="dest-chip">🇲🇦 Morocco</span><span class="dest-chip">🇦🇺 Australia</span>
+      <span class="dest-chip">🇧🇷 Brazil</span><span class="dest-chip">🇳🇿 New Zealand</span><span class="dest-chip">+ anywhere</span>
+    </div>
+  </div>
+</div>
+
+<!-- AUTH VIEW -->
+<div id="authView" style="display:none">
+  <div class="auth-wrap">
+    <div class="auth-box">
+      <div class="auth-logo">
+        <div class="logo-em">✈️</div>
+        <h1>TripAI</h1>
+        <p>Your AI travel planner</p>
+      </div>
+      <div class="auth-tabs">
+        <div class="auth-tab on" id="tabLogin" onclick="switchTab('login')">Log in</div>
+        <div class="auth-tab" id="tabSignup" onclick="switchTab('signup')">Sign up</div>
+      </div>
+      <div id="authError" class="alert alert-err" style="display:none"></div>
+      <div id="authOk" class="alert alert-ok" style="display:none"></div>
+
+      <!-- Login form -->
+      <div id="loginForm">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="loginEmail" class="form-input" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="loginPass" class="form-input" placeholder="••••••••" required>
+        </div>
+        <button class="btn btn-primary btn-full btn-lg" onclick="doLogin()" id="loginBtn">Log in</button>
+        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">
+          No account? <a href="#" onclick="switchTab('signup')" style="color:var(--blue);font-weight:600">Sign up free</a>
+        </p>
+      </div>
+
+      <!-- Signup form -->
+      <div id="signupForm" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">First name</label>
+            <input type="text" id="signupFirst" class="form-input" placeholder="Sanyam">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last name</label>
+            <input type="text" id="signupLast" class="form-input" placeholder="Sharma">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="signupEmail" class="form-input" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="signupPass" class="form-input" placeholder="8+ characters" required>
+        </div>
+        <button class="btn btn-primary btn-full btn-lg" onclick="doSignup()" id="signupBtn">Create account →</button>
+        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">
+          Already have an account? <a href="#" onclick="switchTab('login')" style="color:var(--blue);font-weight:600">Log in</a>
+        </p>
+      </div>
+
+      <button class="btn btn-ghost btn-sm" style="margin-top:16px" onclick="document.getElementById('authView').style.display='none';document.getElementById('landing').style.display='block'">← Back to home</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+// Replace with your Supabase project values (set in Netlify env and inject, or hardcode public keys here)
+const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
+const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+function showAuth(tab) {
+  document.getElementById('landing').style.display = 'none';
+  document.getElementById('authView').style.display = 'flex';
+  switchTab(tab);
+}
+
+function switchTab(tab) {
+  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('tabLogin').classList.toggle('on', tab === 'login');
+  document.getElementById('tabSignup').classList.toggle('on', tab === 'signup');
+  document.getElementById('authError').style.display = 'none';
+  document.getElementById('authOk').style.display = 'none';
+}
+
+function showErr(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'flex';
+}
+function showOk(msg) {
+  const el = document.getElementById('authOk');
+  el.textContent = '✓ ' + msg;
+  el.style.display = 'flex';
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  if (!email || !pass) return showErr('Please fill in all fields.');
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Logging in…';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showErr(error.message); btn.disabled = false; btn.textContent = 'Log in'; }
+  else window.location.href = '/dashboard.html';
+}
+
+async function doSignup() {
+  const first = document.getElementById('signupFirst').value.trim();
+  const last = document.getElementById('signupLast').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const pass = document.getElementById('signupPass').value;
+  if (!email || !pass) return showErr('Email and password are required.');
+  if (pass.length < 8) return showErr('Password must be at least 8 characters.');
+  const btn = document.getElementById('signupBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creating account…';
+  const { error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: (first + ' ' + last).trim() || email.split('@')[0] } }
+  });
+  if (error) { showErr(error.message); btn.disabled = false; btn.textContent = 'Create account →'; }
+  else { showOk('Account created! Check your email to confirm, then log in.'); btn.disabled = false; btn.textContent = 'Create account →'; }
+}
+
+// Check if already logged in
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) window.location.href = '/dashboard.html';
+})();
+
+// Enter key handlers
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') {
+    if (document.getElementById('loginForm').style.display !== 'none') doLogin();
+    else doSignup();
+  }
+});
+</script>
+</body>
+</html>

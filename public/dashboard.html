@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>My Trips - TripAI</title>
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="nav">
+  <a href="/" class="nav-brand">✈️ TripAI</a>
+  <div class="nav-right">
+    <div class="nav-user">
+      <div class="avatar" id="navAvatar">?</div>
+      <span id="navName" style="font-size:14px;font-weight:500"></span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">Log out</button>
+  </div>
+</nav>
+
+<div class="page-hdr" style="display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px">
+  <div>
+    <h1>My Trips</h1>
+    <p id="tripCount">Loading your trips…</p>
+  </div>
+  <a href="/plan.html" class="btn btn-primary">+ Plan new trip</a>
+</div>
+
+<div class="container">
+  <div id="loadingTrips" style="text-align:center;padding:48px">
+    <div class="spinner spinner-blue" style="width:36px;height:36px;margin:0 auto 12px;border-width:3px"></div>
+    <p style="color:var(--muted)">Loading your trips…</p>
+  </div>
+  <div id="tripsGrid" class="grid-3" style="display:none"></div>
+  <div id="emptyState" class="empty" style="display:none">
+    <div class="empty-icon">🌍</div>
+    <h3>No trips yet</h3>
+    <p>Plan your first AI-generated trip in minutes</p>
+    <a href="/plan.html" class="btn btn-primary btn-lg">Plan my first trip →</a>
+  </div>
+</div>
+
+<!-- Delete confirm modal -->
+<div id="deleteModal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:500;display:none;align-items:center;justify-content:center">
+  <div class="card" style="max-width:380px;width:90%">
+    <h3 style="margin-bottom:8px">Delete this trip?</h3>
+    <p style="color:var(--muted);font-size:14px;margin-bottom:20px">This cannot be undone.</p>
+    <div style="display:flex;gap:10px">
+      <button class="btn btn-ghost btn-full" onclick="closeDelete()">Cancel</button>
+      <button class="btn btn-danger btn-full" onclick="confirmDelete()">Delete</button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
+const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+let deleteId = null;
+const EMOJI_MAP = {
+  japan:'🇯🇵',france:'🇫🇷',italy:'🇮🇹',spain:'🇪🇸',greece:'🇬🇷',india:'🇮🇳',
+  usa:'🇺🇸',uk:'🇬🇧',thailand:'🇹🇭',morocco:'🇲🇦',australia:'🇦🇺',brazil:'🇧🇷',
+  portugal:'🇵🇹',germany:'🇩🇪',turkey:'🇹🇷',vietnam:'🇻🇳',indonesia:'🇮🇩',peru:'🇵🇪'
+};
+
+function getEmoji(dest) {
+  const key = (dest || '').toLowerCase();
+  for (const [k, v] of Object.entries(EMOJI_MAP)) {
+    if (key.includes(k)) return v;
+  }
+  return ['🏖️','🏔️','🗺️','🌏','🏛️','🌴'][Math.floor(Math.random()*6)];
+}
+
+function formatDate(d) {
+  if (!d) return '';
+  return new Date(d).toLocaleDateString('en-GB', { day:'numeric', month:'short', year:'numeric' });
+}
+
+function gradients() {
+  const g = [
+    ['#2563EB','#7C3AED'],['#DC2626','#EA580C'],['#059669','#0891B2'],
+    ['#7C3AED','#DB2777'],['#D97706','#DC2626'],['#0891B2','#2563EB']
+  ];
+  return g[Math.floor(Math.random()*g.length)];
+}
+
+async function loadTrips() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = '/'; return; }
+
+  const user = session.user;
+  const name = user.user_metadata?.full_name || user.email.split('@')[0];
+  document.getElementById('navAvatar').textContent = name[0].toUpperCase();
+  document.getElementById('navName').textContent = name;
+
+  const { data: trips, error } = await sb.from('trips')
+    .select('id,title,destination,origin,start_date,end_date,travelers,created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  document.getElementById('loadingTrips').style.display = 'none';
+
+  if (error || !trips || trips.length === 0) {
+    document.getElementById('emptyState').style.display = 'block';
+    document.getElementById('tripCount').textContent = 'No trips planned yet';
+    return;
+  }
+
+  document.getElementById('tripCount').textContent = trips.length + ' trip' + (trips.length !== 1 ? 's' : '') + ' planned';
+  const grid = document.getElementById('tripsGrid');
+  grid.style.display = 'grid';
+
+  grid.innerHTML = trips.map(t => {
+    const [c1,c2] = gradients();
+    const emoji = getEmoji(t.destination);
+    const nights = t.start_date && t.end_date
+      ? Math.ceil((new Date(t.end_date) - new Date(t.start_date))/86400000)
+      : null;
+    return `<div class="trip-card" onclick="openTrip('${t.id}')">
+      <div class="trip-card-img" style="background:linear-gradient(135deg,${c1},${c2})">
+        <span style="font-size:48px">${emoji}</span>
+        <button class="btn btn-sm" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.35);color:#fff;border:none;padding:5px 9px;font-size:11px" onclick="askDelete(event,'${t.id}')">🗑 Delete</button>
+      </div>
+      <div class="trip-card-body">
+        <div class="trip-card-title">${t.title || t.destination}</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:2px">${t.origin} → ${t.destination}</div>
+        <div class="trip-card-meta">
+          ${t.start_date ? '<span>📅 ' + formatDate(t.start_date) + '</span>' : ''}
+          ${nights ? '<span>🌙 ' + nights + ' nights</span>' : ''}
+          ${t.travelers ? '<span>👤 ' + t.travelers + ' traveler' + (t.travelers>1?'s':'') + '</span>' : ''}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openTrip(id) {
+  window.location.href = '/trip.html?id=' + id;
+}
+
+function askDelete(e, id) {
+  e.stopPropagation();
+  deleteId = id;
+  document.getElementById('deleteModal').style.display = 'flex';
+}
+function closeDelete() {
+  deleteId = null;
+  document.getElementById('deleteModal').style.display = 'none';
+}
+async function confirmDelete() {
+  if (!deleteId) return;
+  await sb.from('trips').delete().eq('id', deleteId);
+  closeDelete();
+  loadTrips();
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  window.location.href = '/';
+}
+
+loadTrips();
+</script>
+</body>
+</html>
