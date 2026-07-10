@@ -17,7 +17,7 @@ input,select,textarea{font-family:inherit}
 h1,h2,h3,h4{letter-spacing:-.02em}
 
 .nav{background:rgba(255,255,255,.85);backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid var(--border);padding:0 24px;height:66px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1200}
-.nav-brand{font-size:19px;font-weight:800;letter-spacing:-.03em;color:var(--blue);display:flex;align-items:center;gap:8px;text-decoration:none;transition:opacity .18s var(--ease)}
+.nav-brand{font-size:19px;font-weight:800;letter-spacing:-.03em;color:var(--blue);display:flex;align-items:center;gap:8px;text-decoration:none;transition:opacity .18s var(--ease);white-space:nowrap}
 .nav-brand:hover{opacity:.8}
 .nav-right{display:flex;align-items:center;gap:12px}
 .nav-user{display:flex;align-items:center;gap:10px;font-size:14px;color:var(--muted)}
@@ -100,8 +100,8 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 .step-line{height:2px;flex:1;background:var(--border);margin:0 6px;transition:background .3s var(--ease)}
 .step-line.done{background:var(--green)}
 
-#tripApp{display:flex;height:calc(100vh - 66px);overflow:hidden}
-#sidebar{width:380px;flex-shrink:0;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
+#tripApp{display:flex;height:calc(100vh - 66px);height:calc(100dvh - 66px);overflow:hidden}
+#sidebar{width:380px;flex-shrink:0;min-height:0;background:#fff;border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden}
 #mapDiv{flex:1;position:relative}
 #map{width:100%;height:100%}
 .sb-hdr{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
@@ -211,10 +211,27 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 @media(max-width:700px){
   .hero{padding:64px 20px 56px}
   .hero h1{font-size:32px}
-  #tripApp{flex-direction:column}
-  #sidebar{width:100%;height:50%;border-right:none;border-bottom:1px solid var(--border)}
-  #mapDiv{height:50%}
   .form-row{grid-template-columns:1fr}
   .container,.container-sm{padding:14px}
   .page-hdr{padding:16px 14px 0}
+
+  /* Nav: tighten spacing and drop button text down to icons only so it never crowds */
+  .nav{padding:0 10px;height:58px}
+  .nav-right{gap:6px}
+  .nav-brand{font-size:16px}
+  .btn-sm{padding:7px 10px}
+  .btn-label{display:none}
+  .nav-user span{display:none}
+
+  /* Notification dropdown: anchor to the viewport, not to the bell, so it can't run off-screen */
+  .notif-panel{position:fixed;top:62px;left:12px;right:12px;width:auto;max-width:none}
+
+  /* Trip view: drop the fixed-height app-shell layout entirely on mobile — let the
+     page scroll naturally so the map always sits directly after whatever itinerary
+     content exists, instead of stretching to fill the viewport (100vh is also
+     unreliable with mobile browser chrome, which was causing the overlap). */
+  #tripApp{display:block;height:auto;overflow:visible}
+  #sidebar{width:100%;border-right:none;border-bottom:none}
+  #mapDiv{height:260px;margin:0 10px 14px;border-radius:var(--r);overflow:hidden;box-shadow:var(--sh-md);border:1px solid var(--border)}
+  #map{border-radius:var(--r)}
 }
