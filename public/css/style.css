@@ -107,10 +107,13 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 .sb-hdr{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sb-hdr h2{font-size:16px;font-weight:700}
 .sb-hdr p{font-size:12px;color:var(--muted);margin-top:3px}
-.currency-bar{display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap}
+.currency-bar{margin-top:9px;display:flex;flex-direction:column;gap:5px}
+.cur-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;font-size:11px;color:var(--muted)}
+.cur-row.cur-sub{font-size:10.5px}
 .cur-select{border:1.5px solid var(--border);border-radius:8px;padding:4px 6px;font-size:11px;font-weight:600;background:#fff;color:var(--text)}
-.cur-arrow{color:var(--muted);font-size:11px}
-.cur-rate{font-size:11px;color:var(--muted);margin-left:2px}
+.cur-rate{font-size:10.5px;color:var(--muted)}
+.cur-quick{border:1.5px solid var(--blue);background:var(--blue-l);color:var(--blue);border-radius:20px;padding:3px 10px;font-size:10.5px;font-weight:600;cursor:pointer;transition:all .18s var(--ease)}
+.cur-quick:hover{background:var(--blue);color:#fff}
 .weather-bar{margin-top:7px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;min-height:16px}
 .weather-badge{display:inline-flex;align-items:center;gap:5px;background:var(--blue-l);color:var(--blue);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600}
 .day-tabs{display:flex;overflow-x:auto;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;scrollbar-width:none}

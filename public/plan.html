@@ -75,15 +75,22 @@
         <input type="date" id="endDate" class="form-input">
       </div>
     </div>
-    <div class="form-group">
-      <label class="form-label">Number of travelers</label>
-      <select id="travelers" class="form-input form-select">
-        <option value="1">1 traveler (solo)</option>
-        <option value="2" selected>2 travelers (couple)</option>
-        <option value="3">3 travelers</option>
-        <option value="4">4 travelers</option>
-        <option value="5+">5+ travelers (group)</option>
-      </select>
+    <div class="form-row">
+      <div class="form-group">
+        <label class="form-label">Number of travelers</label>
+        <select id="travelers" class="form-input form-select">
+          <option value="1">1 traveler (solo)</option>
+          <option value="2" selected>2 travelers (couple)</option>
+          <option value="3">3 travelers</option>
+          <option value="4">4 travelers</option>
+          <option value="5+">5+ travelers (group)</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Your home currency</label>
+        <select id="originCurrency" class="form-input form-select"></select>
+        <div class="form-hint">All prices in your itinerary will be estimated in this currency</div>
+      </div>
     </div>
     <div style="display:flex;justify-content:flex-end;margin-top:8px">
       <button class="btn btn-primary btn-lg" onclick="goStep(2)">Next: Preferences →</button>
@@ -195,6 +202,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/js/nav.js"></script>
 <script src="/js/weather.js"></script>
+<script src="/js/currency.js"></script>
 <script>
 const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
 const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
@@ -215,6 +223,17 @@ document.getElementById('startDate').addEventListener('change', function() {
   document.getElementById('endDate').min = this.value;
   if (document.getElementById('endDate').value < this.value)
     document.getElementById('endDate').value = this.value;
+});
+
+// Origin currency: guessed from what's typed, but always manually changeable
+let originCurrencyTouched = false;
+const originCurrencySelect = document.getElementById('originCurrency');
+originCurrencySelect.innerHTML = WanderCurrency.SUPPORTED.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+originCurrencySelect.value = 'USD';
+originCurrencySelect.addEventListener('change', () => { originCurrencyTouched = true; });
+document.getElementById('origin').addEventListener('input', function () {
+  if (originCurrencyTouched) return;
+  originCurrencySelect.value = WanderCurrency.guess(this.value);
 });
 
 function toggleChip(el, group) {
@@ -333,6 +352,7 @@ function goStep(n) {
         <div><strong>Dates</strong><br>${new Date(start).toDateString()} → ${new Date(end).toDateString()}</div>
         <div><strong>Duration</strong><br>${days} days</div>
         <div><strong>Travelers</strong><br>${travelers}</div>
+        <div><strong>Home currency</strong><br>${document.getElementById('originCurrency').value} (prices will be estimated in this)</div>
         <div><strong>Budget</strong><br>${budget.charAt(0).toUpperCase()+budget.slice(1)}</div>
         <div><strong>Pace</strong><br>${pace.charAt(0).toUpperCase()+pace.slice(1)}</div>
         <div><strong>Diet</strong><br>${diet}</div>
@@ -376,6 +396,7 @@ async function generate() {
     const startDate = document.getElementById('startDate').value;
     const endDate = document.getElementById('endDate').value;
     const travelers = document.getElementById('travelers').value;
+    const originCurrency = document.getElementById('originCurrency').value;
     const preferences = {
       budget: getSelected('budgetChips')[0] || 'moderate',
       interests: getMultiSelected('interestChips'),
@@ -383,13 +404,14 @@ async function generate() {
       pace: document.getElementById('pace').value,
       accommodation: document.getElementById('accommodation').value,
       children: children.map(c => c.ageGroup),
-      notes: document.getElementById('notes').value.trim()
+      notes: document.getElementById('notes').value.trim(),
+      currency: { origin: originCurrency, display: originCurrency }
     };
 
     const res = await fetch('/api/generate-trip', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ origin, destination, startDate, endDate, travelers, preferences })
+      body: JSON.stringify({ origin, destination, startDate, endDate, travelers, originCurrency, preferences })
     });
     const data = await res.json();
 

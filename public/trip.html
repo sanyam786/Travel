@@ -80,6 +80,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/js/nav.js"></script>
 <script src="/js/weather.js"></script>
+<script src="/js/currency.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
@@ -95,22 +96,11 @@ let currentUserId = null;
 let myRole = 'viewer';
 let saveTimer = null;
 let tripPreferences = {};
-let originCurrency = 'USD';
-let destCurrency = 'USD';
-
-const CURRENCIES = ['USD','EUR','GBP','JPY','INR','AUD','CAD','CHF','CNY','SGD','THB','AED','MXN','BRL','ZAR','NZD','SEK','NOK','DKK','TRY','IDR','VND','PHP','MYR','KRW','PLN','EGP','MAD','PEN','ILS'];
-const CURRENCY_GUESS = {
-  japan:'JPY', italy:'EUR', spain:'EUR', france:'EUR', greece:'EUR', germany:'EUR', portugal:'EUR',
-  usa:'USD', 'united states':'USD', uk:'GBP', 'united kingdom':'GBP', thailand:'THB', morocco:'MAD',
-  australia:'AUD', brazil:'BRL', 'new zealand':'NZD', india:'INR', turkey:'TRY', vietnam:'VND',
-  indonesia:'IDR', peru:'PEN', singapore:'SGD', china:'CNY', 'south korea':'KRW', mexico:'MXN',
-  switzerland:'CHF', canada:'CAD', 'south africa':'ZAR', philippines:'PHP', malaysia:'MYR', israel:'ILS', egypt:'EGP'
-};
-function guessCurrency(place) {
-  const key = (place || '').toLowerCase();
-  for (const [k, v] of Object.entries(CURRENCY_GUESS)) if (key.includes(k)) return v;
-  return 'USD';
-}
+let baseCurrency = 'USD';    // the currency the itinerary's numbers are actually denominated in
+let displayCurrency = 'USD'; // the currency currently shown (converted via currentRate)
+let destGuess = 'USD';       // guessed local currency of the destination, for the quick-switch button
+let currentRate = 1;
+let rateAvailable = true;
 
 const CAT_ICONS = {
   attraction:'🏛️', restaurant:'🍽️', hotel:'🏨', museum:'🎨',
@@ -152,10 +142,11 @@ function mkIcon(emoji, color) {
 
 function mkPopup(place, color) {
   const icon = CAT_ICONS[place.category] || CAT_ICONS.default;
+  const costText = WanderCurrency.formatCost(place.cost, baseCurrency, rateAvailable ? displayCurrency : baseCurrency, currentRate);
   return '<div><div class="popup-name">'+icon+' '+place.name+'</div>'
     +(place.description?'<div class="popup-desc">'+place.description.substring(0,120)+'…</div>':'')
     +'<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">'
-    +(place.cost?'<span class="badge badge-blue">'+place.cost+'</span>':'')
+    +(costText?'<span class="badge badge-blue">'+costText+'</span>':'')
     +(place.duration?'<span class="badge badge-gray">⏱ '+place.duration+'</span>':'')
     +(place.bookingRequired?'<span class="badge badge-amber">🎟 Book required</span>':'')
     +'</div>'
@@ -277,16 +268,18 @@ function renderDay(day, di) {
   const col = dayColor(di);
   const t = day.transport;
   const canEdit = myRole !== 'viewer';
+  const showCurrency = rateAvailable ? displayCurrency : baseCurrency;
   let html = '';
 
   if (t && t.from) {
     const tIcon = TRANSPORT_ICONS[t.mode]||'🚌';
+    const tCostText = WanderCurrency.formatCost(t.estimatedCost, baseCurrency, showCurrency, currentRate) || 'set cost';
     html += '<div class="tcard"><div class="tcard-route">'+tIcon+' '
       +(canEdit?'<span class="editable" data-edit="transport|from">'+t.from+'</span>':t.from)+' → '
       +(canEdit?'<span class="editable" data-edit="transport|to">'+t.to+'</span>':t.to)+'</div>'
       +'<div class="tcard-meta">'
       +'<span>⏱ '+(canEdit?'<span class="editable" data-edit="transport|duration">'+(t.duration||'set duration')+'</span>':(t.duration||''))+'</span>'
-      +'<span>💰 '+(canEdit?'<span class="editable" data-edit="transport|estimatedCost">'+(t.estimatedCost||'set cost')+'</span>':(t.estimatedCost||''))+'</span>'
+      +'<span>💰 '+(canEdit?'<span class="editable" data-edit="transport|estimatedCost">'+tCostText+'</span>':tCostText)+'</span>'
       +'</div>'
       +'<div style="font-size:12px;color:var(--muted);margin-top:5px;font-style:italic'+(canEdit?'" class="editable" data-edit="transport|notes':'')+'">'+(t.notes||(canEdit?'Add notes…':''))+'</div>'
       +(t.bookingUrl?'<a href="'+t.bookingUrl+'" target="_blank" style="font-size:12px;color:var(--blue);font-weight:600">Book '+t.mode+' →</a>':'')
@@ -300,6 +293,7 @@ function renderDay(day, di) {
 
   (day.places||[]).forEach(p => {
     const pIcon = CAT_ICONS[p.category]||CAT_ICONS.default;
+    const pCostText = WanderCurrency.formatCost(p.cost, baseCurrency, showCurrency, currentRate) || (canEdit ? 'Set cost' : '');
     html += '<div class="pitem" id="card-'+p.id+'" onclick="clickPlace(\''+p.id+'\')">'
       +(canEdit?'<span class="pitem-remove" data-pid="'+p.id+'">✕</span>':'')
       +'<div class="pitem-hdr"><div class="pitem-ico">'+pIcon+'</div>'
@@ -312,7 +306,7 @@ function renderDay(day, di) {
       +'<div class="pitem-desc'+(canEdit?' editable" data-edit="place|'+p.id+'|description':'')+'">'
       +(canEdit ? (p.description||'Add a description…') : (p.description||'').substring(0,100)+'…')+'</div>'
       +'<div class="pitem-tags">'
-      +'<span class="badge badge-blue'+(canEdit?' editable" data-edit="place|'+p.id+'|cost':'')+'">'+(p.cost||(canEdit?'Set cost':''))+'</span>'
+      +(pCostText?'<span class="badge badge-blue'+(canEdit?' editable" data-edit="place|'+p.id+'|cost':'')+'">'+pCostText+'</span>':'')
       +(p.bookingRequired?'<span class="badge badge-amber">🎟 Book ahead</span>':'')
       +(p.babyFriendly===true?'<span class="badge badge-green">👶 Baby ok</span>':'')
       +(p.babyFriendly===false?'<span class="badge badge-red">⚠ Carrier</span>':'')
@@ -329,6 +323,7 @@ function renderDay(day, di) {
 
 function renderAllDays(days) {
   const itin = tripData;
+  const showCurrency = rateAvailable ? displayCurrency : baseCurrency;
   let html = '';
 
   if (itin.urgentBookings && itin.urgentBookings.length) {
@@ -346,7 +341,7 @@ function renderAllDays(days) {
     const b = itin.budgetEstimate;
     html += '<div style="background:var(--blue-l);border:1px solid #BFDBFE;border-radius:8px;padding:12px;margin-bottom:14px">'
       +'<div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">💰 Budget estimate</div>'
-      +Object.entries(b).map(([k,v])=>'<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px solid #BFDBFE"><span>'+k.charAt(0).toUpperCase()+k.slice(1)+'</span><span style="font-weight:600">'+v+'</span></div>').join('')
+      +Object.entries(b).map(([k,v])=>'<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px solid #BFDBFE"><span>'+k.charAt(0).toUpperCase()+k.slice(1)+'</span><span style="font-weight:600">'+WanderCurrency.formatCost(v, baseCurrency, showCurrency, currentRate)+'</span></div>').join('')
       +'</div>';
   }
 
@@ -359,9 +354,10 @@ function renderAllDays(days) {
       +'</div>';
     (day.places||[]).slice(0,3).forEach(p => {
       const pIcon = CAT_ICONS[p.category]||CAT_ICONS.default;
+      const pCostText = (p.cost && !p.cost.free) ? WanderCurrency.formatCost(p.cost, baseCurrency, showCurrency, currentRate) : '';
       html += '<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="clickPlace(\''+p.id+'\')">'
         +'<span>'+pIcon+'</span><span>'+p.name+'</span>'
-        +(p.cost&&p.cost!=='Free'?'<span style="margin-left:auto;font-size:12px;color:var(--muted)">'+p.cost+'</span>':'')
+        +(pCostText?'<span style="margin-left:auto;font-size:12px;color:var(--muted)">'+pCostText+'</span>':'')
         +'</div>';
     });
     if ((day.places||[]).length > 3) {
@@ -387,15 +383,33 @@ function attachEditHandlers(di) {
 
 function beginInlineEdit(el, di) {
   const [kind, a, b] = el.dataset.edit.split('|');
-  let getVal, setVal, multiline = false;
+  let getVal, setVal, multiline = false, isCost = false;
 
   if (kind === 'day') {
     getVal = () => tripData.days[di].title || '';
     setVal = v => { tripData.days[di].title = v; };
+  } else if (kind === 'transport' && a === 'estimatedCost') {
+    isCost = true;
+    getVal = () => WanderCurrency.formatPlain(tripData.days[di].transport && tripData.days[di].transport.estimatedCost);
+    setVal = v => {
+      tripData.days[di].transport = tripData.days[di].transport || {};
+      const prevUnit = (tripData.days[di].transport.estimatedCost && tripData.days[di].transport.estimatedCost.unit) || '';
+      tripData.days[di].transport.estimatedCost = Object.assign(WanderCurrency.parseCostInput(v), { unit: prevUnit });
+    };
   } else if (kind === 'transport') {
     const field = a;
     getVal = () => (tripData.days[di].transport && tripData.days[di].transport[field]) || '';
     setVal = v => { tripData.days[di].transport = tripData.days[di].transport || {}; tripData.days[di].transport[field] = v; };
+  } else if (kind === 'place' && b === 'cost') {
+    isCost = true;
+    const pid = a;
+    const place = (tripData.days[di].places || []).find(p => p.id === pid);
+    getVal = () => WanderCurrency.formatPlain(place && place.cost);
+    setVal = v => {
+      if (!place) return;
+      const prevUnit = (place.cost && place.cost.unit) || '';
+      place.cost = Object.assign(WanderCurrency.parseCostInput(v), { unit: prevUnit });
+    };
   } else if (kind === 'place') {
     const pid = a, field = b;
     const place = (tripData.days[di].places || []).find(p => p.id === pid);
@@ -408,6 +422,7 @@ function beginInlineEdit(el, di) {
   const input = document.createElement(multiline ? 'textarea' : 'input');
   input.className = 'inline-input';
   input.value = current;
+  if (isCost) input.placeholder = 'e.g. 400-800 or Free (in ' + baseCurrency + ')';
   if (multiline) input.rows = 2;
   el.replaceWith(input);
   input.focus();
@@ -432,7 +447,7 @@ function addPlace(di) {
   const day = tripData.days[di];
   day.places = day.places || [];
   const newId = 'custom-' + Date.now().toString(36);
-  day.places.push({ id: newId, name: 'New place', category: 'attraction', timeOfDay: 'Morning', duration: '1 hour', description: '', cost: '', lat: 0, lng: 0 });
+  day.places.push({ id: newId, name: 'New place', category: 'attraction', timeOfDay: 'Morning', duration: '1 hour', description: '', cost: { min: 0, max: 0, free: true, unit: '' }, lat: 0, lng: 0 });
   scheduleSave();
   renderDay(day, di);
 }
@@ -464,38 +479,63 @@ async function saveTripEdit() {
 }
 
 // ---- CURRENCY ----
+// baseCurrency = what the itinerary's numbers are actually denominated in (set at
+// generation time). displayCurrency = what's currently shown, converted live via
+// currentRate. Both are always editable, and the choice persists for the owner/editors.
 function renderCurrencyBar() {
   const el = document.getElementById('currencyBar');
-  const opts = CURRENCIES.map(c => '<option value="' + c + '">' + c + '</option>').join('');
-  el.innerHTML = '<span title="Currency">💱</span>'
-    + '<select id="curOrigin" class="cur-select">' + opts + '</select>'
-    + '<span class="cur-arrow">→</span>'
-    + '<select id="curDest" class="cur-select">' + opts + '</select>'
-    + '<span id="curRate" class="cur-rate">…</span>';
-  document.getElementById('curOrigin').value = originCurrency;
-  document.getElementById('curDest').value = destCurrency;
-  document.getElementById('curOrigin').addEventListener('change', e => { originCurrency = e.target.value; onCurrencyChange(); });
-  document.getElementById('curDest').addEventListener('change', e => { destCurrency = e.target.value; onCurrencyChange(); });
+  const opts = WanderCurrency.SUPPORTED.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+  el.innerHTML =
+      '<div class="cur-row"><span title="Prices shown in">💱 Showing in</span>'
+    + '<select id="curDisplay" class="cur-select">' + opts + '</select>'
+    + '<button type="button" id="curDestBtn" class="cur-quick"></button>'
+    + '</div>'
+    + '<div class="cur-row cur-sub"><span>Priced in</span>'
+    + '<select id="curBase" class="cur-select">' + opts + '</select>'
+    + '<span id="curRateInfo" class="cur-rate"></span>'
+    + '</div>';
+  document.getElementById('curDisplay').value = displayCurrency;
+  document.getElementById('curBase').value = baseCurrency;
+  document.getElementById('curDisplay').addEventListener('change', e => { displayCurrency = e.target.value; onCurrencyChange(); });
+  document.getElementById('curBase').addEventListener('change', e => { baseCurrency = e.target.value; onCurrencyChange(); });
+  document.getElementById('curDestBtn').addEventListener('click', () => {
+    displayCurrency = (displayCurrency === destGuess) ? baseCurrency : destGuess;
+    document.getElementById('curDisplay').value = displayCurrency;
+    onCurrencyChange();
+  });
+  updateDestBtnLabel();
+}
+
+function updateDestBtnLabel() {
+  const btn = document.getElementById('curDestBtn');
+  if (!btn) return;
+  if (destGuess === baseCurrency) { btn.style.display = 'none'; return; }
+  btn.style.display = 'inline-flex';
+  btn.textContent = displayCurrency === destGuess ? ('🏠 Show in ' + baseCurrency) : ('🌍 Show in ' + destGuess);
+}
+
+async function updateRate() {
+  if (displayCurrency === baseCurrency) { currentRate = 1; rateAvailable = true; }
+  else {
+    const r = await WanderCurrency.getRate(baseCurrency, displayCurrency);
+    if (r) { currentRate = r; rateAvailable = true; }
+    else { rateAvailable = false; }
+  }
+  const rateEl = document.getElementById('curRateInfo');
+  if (!rateEl) return;
+  if (displayCurrency === baseCurrency) rateEl.textContent = '';
+  else if (!rateAvailable) rateEl.textContent = 'Rate unavailable — showing ' + baseCurrency;
+  else rateEl.textContent = '1 ' + baseCurrency + ' ≈ ' + currentRate.toFixed(2) + ' ' + displayCurrency;
 }
 
 async function onCurrencyChange() {
-  fetchExchangeRate();
+  await updateRate();
+  updateDestBtnLabel();
+  if (activeDay === 'all') renderAllDays(tripData.days || []);
+  else renderDay(tripData.days[activeDay], activeDay);
   if (myRole === 'viewer') return; // display-only for viewers; RLS would block a persisted write anyway
-  tripPreferences.currency = { origin: originCurrency, destination: destCurrency };
+  tripPreferences.currency = { origin: baseCurrency, display: displayCurrency };
   await sb.from('trips').update({ preferences: tripPreferences }).eq('id', tripId);
-}
-
-async function fetchExchangeRate() {
-  const rateEl = document.getElementById('curRate');
-  if (!rateEl) return;
-  if (originCurrency === destCurrency) { rateEl.textContent = 'Same currency'; return; }
-  rateEl.textContent = '…';
-  try {
-    const res = await fetch('https://api.frankfurter.app/latest?from=' + originCurrency + '&to=' + destCurrency);
-    const data = await res.json();
-    const rate = data.rates && data.rates[destCurrency];
-    rateEl.textContent = rate ? ('1 ' + originCurrency + ' ≈ ' + rate.toFixed(2) + ' ' + destCurrency) : 'Rate unavailable';
-  } catch { rateEl.textContent = 'Rate unavailable'; }
 }
 
 // ---- WEATHER ----
@@ -647,10 +687,11 @@ async function loadTrip() {
   if (trip.travelers) meta.push(trip.travelers+' traveler'+(trip.travelers>1?'s':''));
   document.getElementById('tripMeta').textContent = meta.join(' · ');
 
-  originCurrency = tripPreferences.currency?.origin || 'USD';
-  destCurrency = tripPreferences.currency?.destination || guessCurrency(trip.destination);
+  baseCurrency = tripData.currency || tripPreferences.currency?.origin || 'USD';
+  displayCurrency = tripPreferences.currency?.display || baseCurrency;
+  destGuess = WanderCurrency.guess(trip.destination);
   renderCurrencyBar();
-  fetchExchangeRate();
+  await updateRate();
 
   loadWeather(trip.destination, trip.start_date, trip.end_date);
 

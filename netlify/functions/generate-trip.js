@@ -2,6 +2,12 @@ const Groq = require("groq-sdk");
 
 const SYSTEM_PROMPT = `You are WanderAI, an expert travel planner. Generate complete travel itineraries as JSON ONLY — no markdown, no explanation.
 
+All monetary fields are structured objects, never strings: { "min": number, "max": number, "free": boolean, "unit": string }.
+- "min"/"max" are plain numeric estimates with no currency symbols or separators (use "max" equal to "min" for a single fixed price).
+- "free" is true only for genuinely free places/activities (in that case min and max should be 0).
+- "unit" is an optional short suffix like "/night", "/day", "/person", or " total" — omit it ("") when not needed.
+- Every number MUST be denominated in the single currency specified in the user message. Do not mix currencies.
+
 Return this EXACT structure:
 {
   "title": "X Days in Destination",
@@ -19,7 +25,7 @@ Return this EXACT structure:
         "from": "Origin City",
         "to": "Destination City",
         "duration": "~9 hrs",
-        "estimatedCost": "$400–800/person",
+        "estimatedCost": { "min": 400, "max": 800, "free": false, "unit": "/person" },
         "bookingUrl": "https://google.com/flights",
         "notes": "Book 2–3 months ahead"
       },
@@ -34,7 +40,7 @@ Return this EXACT structure:
           "duration": "1.5 hours",
           "description": "Why visit this place",
           "practicalInfo": "Opening hours, entry requirements",
-          "cost": "Free",
+          "cost": { "min": 0, "max": 0, "free": true, "unit": "" },
           "bookingUrl": null,
           "bookingRequired": false,
           "tips": "Insider tip",
@@ -44,12 +50,12 @@ Return this EXACT structure:
     }
   ],
   "budgetEstimate": {
-    "flights": "$800–1200 total",
-    "accommodation": "$80–150/night",
-    "food": "$30–60/day",
-    "activities": "$200–400 total",
-    "transport": "$100–200 total",
-    "total": "$2000–4000 full trip"
+    "flights": { "min": 800, "max": 1200, "free": false, "unit": " total" },
+    "accommodation": { "min": 80, "max": 150, "free": false, "unit": "/night" },
+    "food": { "min": 30, "max": 60, "free": false, "unit": "/day" },
+    "activities": { "min": 200, "max": 400, "free": false, "unit": " total" },
+    "transport": { "min": 100, "max": 200, "free": false, "unit": " total" },
+    "total": { "min": 2000, "max": 4000, "free": false, "unit": " full trip" }
   },
   "urgentBookings": [
     {
@@ -77,11 +83,12 @@ exports.handler = async (event) => {
   if (event.httpMethod !== "POST") return { statusCode: 405, headers, body: JSON.stringify({ error: "Method not allowed" }) };
 
   try {
-    const { origin, destination, startDate, endDate, travelers, preferences } = JSON.parse(event.body);
+    const { origin, destination, startDate, endDate, travelers, originCurrency, preferences } = JSON.parse(event.body);
     if (!origin || !destination || !startDate || !endDate) {
       return { statusCode: 400, headers, body: JSON.stringify({ error: "Missing required fields" }) };
     }
 
+    const currency = originCurrency || "USD";
     const days = Math.ceil((new Date(endDate) - new Date(startDate)) / 86400000) + 1;
     const p = preferences || {};
 
@@ -99,6 +106,7 @@ exports.handler = async (event) => {
 - Dietary: ${p.dietary || "none"}
 - Accommodation: ${p.accommodation || "mid-range hotel"}
 - Pace: ${p.pace || "moderate"}
+- Currency: price every cost field as plain numbers in ${currency} (ISO code) — the traveler's home currency. Estimate realistic ${currency} amounts for the destination's actual price level, don't just reuse USD numbers relabeled.
 ${p.notes ? "- Notes: " + p.notes : ""}
 
 Cover all ${days} days with real places, accurate GPS, costs, booking links. Include flight on day 1 if international.`;
@@ -122,13 +130,32 @@ Cover all ${days} days with real places, accurate GPS, costs, booking links. Inc
 
     if (!itinerary.days || !Array.isArray(itinerary.days)) throw new Error("Invalid itinerary structure");
 
-    // Sanitize coordinates
+    const sanitizeCost = (c) => {
+      if (c && typeof c === "object" && !Array.isArray(c)) {
+        const min = parseFloat(c.min);
+        const max = parseFloat(c.max);
+        return { min: isNaN(min) ? 0 : min, max: isNaN(max) ? (isNaN(min) ? 0 : min) : max, free: !!c.free, unit: typeof c.unit === "string" ? c.unit : "" };
+      }
+      // Fallback if the model ever returns a plain string/number despite instructions.
+      const n = parseFloat(c);
+      return isNaN(n) ? { min: 0, max: 0, free: true, unit: "" } : { min: n, max: n, free: n === 0, unit: "" };
+    };
+
+    // Currency is authoritative from the request, not the AI's echo — and sanitize coordinates + cost shapes.
+    itinerary.currency = currency;
     itinerary.days.forEach(day => {
-      (day.places || []).forEach(p => {
-        p.lat = parseFloat(p.lat) || 0;
-        p.lng = parseFloat(p.lng) || 0;
+      (day.places || []).forEach(place => {
+        place.lat = parseFloat(place.lat) || 0;
+        place.lng = parseFloat(place.lng) || 0;
+        place.cost = sanitizeCost(place.cost);
       });
+      if (day.transport) day.transport.estimatedCost = sanitizeCost(day.transport.estimatedCost);
     });
+    if (itinerary.budgetEstimate && typeof itinerary.budgetEstimate === "object") {
+      Object.keys(itinerary.budgetEstimate).forEach(k => {
+        itinerary.budgetEstimate[k] = sanitizeCost(itinerary.budgetEstimate[k]);
+      });
+    }
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true, itinerary }) };
   } catch (err) {
