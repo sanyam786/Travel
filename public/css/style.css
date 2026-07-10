@@ -16,7 +16,7 @@ button{cursor:pointer;font-family:inherit}
 input,select,textarea{font-family:inherit}
 h1,h2,h3,h4{letter-spacing:-.02em}
 
-.nav{background:rgba(255,255,255,.85);backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid var(--border);padding:0 24px;height:66px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100}
+.nav{background:rgba(255,255,255,.85);backdrop-filter:saturate(180%) blur(14px);border-bottom:1px solid var(--border);padding:0 24px;height:66px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:1200}
 .nav-brand{font-size:19px;font-weight:800;letter-spacing:-.03em;color:var(--blue);display:flex;align-items:center;gap:8px;text-decoration:none;transition:opacity .18s var(--ease)}
 .nav-brand:hover{opacity:.8}
 .nav-right{display:flex;align-items:center;gap:12px}
@@ -107,6 +107,12 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 .sb-hdr{padding:16px 18px;border-bottom:1px solid var(--border);flex-shrink:0}
 .sb-hdr h2{font-size:16px;font-weight:700}
 .sb-hdr p{font-size:12px;color:var(--muted);margin-top:3px}
+.currency-bar{display:flex;align-items:center;gap:6px;margin-top:9px;flex-wrap:wrap}
+.cur-select{border:1.5px solid var(--border);border-radius:8px;padding:4px 6px;font-size:11px;font-weight:600;background:#fff;color:var(--text)}
+.cur-arrow{color:var(--muted);font-size:11px}
+.cur-rate{font-size:11px;color:var(--muted);margin-left:2px}
+.weather-bar{margin-top:7px;font-size:12px;color:var(--muted);display:flex;align-items:center;gap:6px;min-height:16px}
+.weather-badge{display:inline-flex;align-items:center;gap:5px;background:var(--blue-l);color:var(--blue);border-radius:20px;padding:4px 10px;font-size:11px;font-weight:600}
 .day-tabs{display:flex;overflow-x:auto;gap:6px;padding:10px 14px;border-bottom:1px solid var(--border);flex-shrink:0;scrollbar-width:none}
 .day-tabs::-webkit-scrollbar{display:none}
 .dtab{flex-shrink:0;padding:6px 12px;border-radius:20px;border:1.5px solid var(--border);background:#fff;color:var(--muted);font-size:11px;font-weight:600;cursor:pointer;transition:all .18s var(--ease);white-space:nowrap}
@@ -179,7 +185,7 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 .notif-time{font-size:11px;color:var(--muted)}
 
 /* ---- Share modal ---- */
-.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:500;display:flex;align-items:center;justify-content:center;padding:20px}
+.modal-overlay{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:1500;display:flex;align-items:center;justify-content:center;padding:20px}
 .modal-box{background:#fff;border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:26px;width:100%;max-width:440px;max-height:85vh;overflow-y:auto}
 .collab-row{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:6px 10px;padding:10px 0;border-bottom:1px solid var(--border)}
 .collab-row:last-child{border-bottom:none}
@@ -194,9 +200,9 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 .inline-input{width:100%;border:1.5px solid var(--blue);border-radius:6px;padding:4px 7px;font-size:inherit;font-family:inherit;font-weight:inherit;color:inherit;outline:none}
 .pitem-remove{float:right;color:var(--muted);font-size:14px;line-height:1;padding:2px 6px;border-radius:6px}
 .pitem-remove:hover{background:#FEF2F2;color:var(--red)}
-.add-place-btn{display:block;width:100%;text-align:center;padding:9px;border:1.5px dashed var(--border);border-radius:10px;color:var(--muted);font-size:12px;font-weight:600;background:transparent;margin-top:6px;transition:all .18s var(--ease)}
-.add-place-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
-.sync-toast{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;font-size:12px;font-weight:600;padding:8px 16px;border-radius:20px;box-shadow:var(--sh-lg);z-index:1000;opacity:0;transition:opacity .3s var(--ease)}
+.dashed-add-btn{display:block;width:100%;text-align:center;padding:9px;border:1.5px dashed var(--border);border-radius:10px;color:var(--muted);font-size:12px;font-weight:600;background:transparent;margin-top:6px;transition:all .18s var(--ease)}
+.dashed-add-btn:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-l)}
+.sync-toast{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:var(--text);color:#fff;font-size:12px;font-weight:600;padding:8px 16px;border-radius:20px;box-shadow:var(--sh-lg);z-index:1050;opacity:0;transition:opacity .3s var(--ease)}
 .sync-toast.show{opacity:1}
 
 @media(max-width:700px){

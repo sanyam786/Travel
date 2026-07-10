@@ -154,10 +154,12 @@
 
     <div class="form-group">
       <label class="form-label" style="display:flex;align-items:center;gap:8px;cursor:pointer">
-        <input type="checkbox" id="withBaby" style="width:16px;height:16px;accent-color:var(--blue)">
-        Traveling with a baby or young infant
+        <input type="checkbox" id="hasKids" style="width:16px;height:16px;accent-color:var(--blue)" onchange="toggleKids()">
+        Traveling with kids or infants
       </label>
-      <div class="form-hint">We'll note stroller accessibility, nursing facilities, and family-friendly options</div>
+      <div class="form-hint">Tell us their ages so we can tailor activities, pacing, and facilities</div>
+      <div id="kidsList" style="display:none;margin-top:10px"></div>
+      <button type="button" class="dashed-add-btn" id="addChildBtn" style="display:none" onclick="addChild()">+ Add child</button>
     </div>
 
     <div class="form-group">
@@ -175,7 +177,9 @@
   <div id="step3" class="card" style="display:none">
     <h2 style="font-size:17px;font-weight:700;margin-bottom:18px">Review your trip details</h2>
     <div id="reviewContent" style="background:var(--bg);border-radius:8px;padding:16px;margin-bottom:20px;font-size:14px;line-height:1.8"></div>
-    
+
+    <div id="weatherReview" class="alert alert-info" style="display:none"></div>
+
     <div class="alert alert-info">
       <span>🤖</span>
       <div>Our AI will generate a complete day-by-day itinerary with real places, GPS coordinates, costs, and booking links. This takes about 15-30 seconds.</div>
@@ -190,6 +194,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/js/nav.js"></script>
+<script src="/js/weather.js"></script>
 <script>
 const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
 const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
@@ -246,6 +251,54 @@ function updateSteps(n) {
   document.getElementById('line23').className = 'step-line' + (n > 2 ? ' done' : '');
 }
 
+let children = [];
+const AGE_GROUPS = [
+  { val: 'infant', label: '👶 Infant (0–2)' },
+  { val: 'toddler', label: '🧒 Toddler (2–4)' },
+  { val: 'child', label: '🧒 Child (5–9)' },
+  { val: 'preteen', label: '🧑 Preteen (10–12)' },
+  { val: 'teen', label: '🧑 Teen (13–17)' }
+];
+
+function toggleKids() {
+  const on = document.getElementById('hasKids').checked;
+  document.getElementById('kidsList').style.display = on ? 'block' : 'none';
+  document.getElementById('addChildBtn').style.display = on ? 'block' : 'none';
+  if (on && !children.length) addChild();
+  if (!on) { children = []; renderKidsList(); }
+}
+
+function addChild() {
+  children.push({ ageGroup: 'child' });
+  renderKidsList();
+}
+function removeChild(i) {
+  children.splice(i, 1);
+  renderKidsList();
+}
+function setChildAge(i, val) {
+  children[i].ageGroup = val;
+}
+function renderKidsList() {
+  const el = document.getElementById('kidsList');
+  el.innerHTML = children.map((c, i) => '<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+    + '<select class="form-input form-select" style="flex:1" onchange="setChildAge(' + i + ', this.value)">'
+    + AGE_GROUPS.map(g => '<option value="' + g.val + '"' + (c.ageGroup === g.val ? ' selected' : '') + '>' + g.label + '</option>').join('')
+    + '</select>'
+    + '<button type="button" class="btn btn-ghost btn-sm" onclick="removeChild(' + i + ')">✕</button>'
+    + '</div>').join('');
+}
+
+async function loadWeatherPreview(dest, start, end) {
+  const el = document.getElementById('weatherReview');
+  if (!dest || !start || !end) { el.style.display = 'none'; return; }
+  el.style.display = 'flex';
+  el.innerHTML = '<span>🌤</span><div>Checking typical weather for your dates…</div>';
+  const w = await WanderWeather.getApprox(dest, start, end);
+  if (!w) { el.style.display = 'none'; return; }
+  el.innerHTML = '<span>🌡</span><div><strong>Typical weather:</strong> ' + w.label + ', approx ' + w.avgLow + '°–' + w.avgHigh + '°C. ' + w.tip + '</div>';
+}
+
 function goStep(n) {
   clearAlert();
   if (n === 2) {
@@ -271,7 +324,7 @@ function goStep(n) {
     const diet = getSelected('dietChips')[0] || 'none';
     const pace = document.getElementById('pace').value;
     const accom = document.getElementById('accommodation').value;
-    const baby = document.getElementById('withBaby').checked;
+    const kidsSummary = children.map(c => (AGE_GROUPS.find(g => g.val === c.ageGroup) || {}).label).filter(Boolean).join(', ');
 
     document.getElementById('reviewContent').innerHTML = `
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -284,8 +337,9 @@ function goStep(n) {
         <div><strong>Pace</strong><br>${pace.charAt(0).toUpperCase()+pace.slice(1)}</div>
         <div><strong>Diet</strong><br>${diet}</div>
         ${interests.length ? '<div style="grid-column:1/-1"><strong>Interests</strong><br>' + interests.join(', ') + '</div>' : ''}
-        ${baby ? '<div><strong>Special</strong><br>Traveling with infant 👶</div>' : ''}
+        ${children.length ? '<div style="grid-column:1/-1"><strong>Traveling with</strong><br>' + kidsSummary + '</div>' : ''}
       </div>`;
+    loadWeatherPreview(dest, start, end);
   }
   [1,2,3].forEach(i => document.getElementById('step'+i).style.display = i === n ? 'block' : 'none');
   currentStep = n;
@@ -328,7 +382,7 @@ async function generate() {
       dietary: getSelected('dietChips')[0] || 'none',
       pace: document.getElementById('pace').value,
       accommodation: document.getElementById('accommodation').value,
-      withBaby: document.getElementById('withBaby').checked,
+      children: children.map(c => c.ageGroup),
       notes: document.getElementById('notes').value.trim()
     };
 

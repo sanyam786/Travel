@@ -85,9 +85,15 @@ exports.handler = async (event) => {
     const days = Math.ceil((new Date(endDate) - new Date(startDate)) / 86400000) + 1;
     const p = preferences || {};
 
+    const AGE_LABELS = { infant: "infant (0–2)", toddler: "toddler (2–4)", child: "child (5–9)", preteen: "preteen (10–12)", teen: "teen (13–17)" };
+    const kids = Array.isArray(p.children) ? p.children : [];
+    const kidsNote = kids.length
+      ? ` + ${kids.length} ${kids.length > 1 ? "children" : "child"} (${kids.map(a => AGE_LABELS[a] || a).join(", ")}) — include age-appropriate activities and pacing, and note stroller/nursing access for any infants or toddlers`
+      : "";
+
     const prompt = `Plan a ${days}-day trip from ${origin} to ${destination}.
 - Dates: ${startDate} to ${endDate}
-- Travelers: ${travelers || 1} adult(s)${p.withBaby ? " + 1 infant (note stroller access + family facilities)" : ""}
+- Travelers: ${travelers || 1} adult(s)${kidsNote}
 - Budget: ${p.budget || "moderate"}
 - Interests: ${(p.interests || []).join(", ") || "culture, food, sightseeing"}
 - Dietary: ${p.dietary || "none"}

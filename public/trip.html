@@ -27,6 +27,8 @@
     <div class="sb-hdr">
       <h2 id="tripTitle">Loading…</h2>
       <p id="tripMeta"></p>
+      <div id="currencyBar" class="currency-bar"></div>
+      <div id="weatherBar" class="weather-bar"></div>
     </div>
     <div class="day-tabs" id="dayTabs"></div>
     <div class="sb-body" id="sbBody">
@@ -77,6 +79,7 @@
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/js/nav.js"></script>
+<script src="/js/weather.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
@@ -91,6 +94,23 @@ let tripId = null;
 let currentUserId = null;
 let myRole = 'viewer';
 let saveTimer = null;
+let tripPreferences = {};
+let originCurrency = 'USD';
+let destCurrency = 'USD';
+
+const CURRENCIES = ['USD','EUR','GBP','JPY','INR','AUD','CAD','CHF','CNY','SGD','THB','AED','MXN','BRL','ZAR','NZD','SEK','NOK','DKK','TRY','IDR','VND','PHP','MYR','KRW','PLN','EGP','MAD','PEN','ILS'];
+const CURRENCY_GUESS = {
+  japan:'JPY', italy:'EUR', spain:'EUR', france:'EUR', greece:'EUR', germany:'EUR', portugal:'EUR',
+  usa:'USD', 'united states':'USD', uk:'GBP', 'united kingdom':'GBP', thailand:'THB', morocco:'MAD',
+  australia:'AUD', brazil:'BRL', 'new zealand':'NZD', india:'INR', turkey:'TRY', vietnam:'VND',
+  indonesia:'IDR', peru:'PEN', singapore:'SGD', china:'CNY', 'south korea':'KRW', mexico:'MXN',
+  switzerland:'CHF', canada:'CAD', 'south africa':'ZAR', philippines:'PHP', malaysia:'MYR', israel:'ILS', egypt:'EGP'
+};
+function guessCurrency(place) {
+  const key = (place || '').toLowerCase();
+  for (const [k, v] of Object.entries(CURRENCY_GUESS)) if (key.includes(k)) return v;
+  return 'USD';
+}
 
 const CAT_ICONS = {
   attraction:'🏛️', restaurant:'🍽️', hotel:'🏨', museum:'🎨',
@@ -301,7 +321,7 @@ function renderDay(day, di) {
       +'</div>';
   });
 
-  if (canEdit) html += '<button class="add-place-btn" id="addPlaceBtn">+ Add place</button>';
+  if (canEdit) html += '<button class="dashed-add-btn" id="addPlaceBtn">+ Add place</button>';
 
   document.getElementById('sbBody').innerHTML = html;
   if (canEdit) attachEditHandlers(di);
@@ -443,10 +463,58 @@ async function saveTripEdit() {
   }).catch(() => {});
 }
 
+// ---- CURRENCY ----
+function renderCurrencyBar() {
+  const el = document.getElementById('currencyBar');
+  const opts = CURRENCIES.map(c => '<option value="' + c + '">' + c + '</option>').join('');
+  el.innerHTML = '<span title="Currency">💱</span>'
+    + '<select id="curOrigin" class="cur-select">' + opts + '</select>'
+    + '<span class="cur-arrow">→</span>'
+    + '<select id="curDest" class="cur-select">' + opts + '</select>'
+    + '<span id="curRate" class="cur-rate">…</span>';
+  document.getElementById('curOrigin').value = originCurrency;
+  document.getElementById('curDest').value = destCurrency;
+  document.getElementById('curOrigin').addEventListener('change', e => { originCurrency = e.target.value; onCurrencyChange(); });
+  document.getElementById('curDest').addEventListener('change', e => { destCurrency = e.target.value; onCurrencyChange(); });
+}
+
+async function onCurrencyChange() {
+  fetchExchangeRate();
+  if (myRole === 'viewer') return; // display-only for viewers; RLS would block a persisted write anyway
+  tripPreferences.currency = { origin: originCurrency, destination: destCurrency };
+  await sb.from('trips').update({ preferences: tripPreferences }).eq('id', tripId);
+}
+
+async function fetchExchangeRate() {
+  const rateEl = document.getElementById('curRate');
+  if (!rateEl) return;
+  if (originCurrency === destCurrency) { rateEl.textContent = 'Same currency'; return; }
+  rateEl.textContent = '…';
+  try {
+    const res = await fetch('https://api.frankfurter.app/latest?from=' + originCurrency + '&to=' + destCurrency);
+    const data = await res.json();
+    const rate = data.rates && data.rates[destCurrency];
+    rateEl.textContent = rate ? ('1 ' + originCurrency + ' ≈ ' + rate.toFixed(2) + ' ' + destCurrency) : 'Rate unavailable';
+  } catch { rateEl.textContent = 'Rate unavailable'; }
+}
+
+// ---- WEATHER ----
+async function loadWeather(place, startDate, endDate) {
+  const el = document.getElementById('weatherBar');
+  if (!el) return;
+  if (!startDate || !endDate) { el.innerHTML = ''; return; }
+  el.innerHTML = '<span class="weather-badge">🌤 Checking typical weather…</span>';
+  const w = await WanderWeather.getApprox(place, startDate, endDate);
+  if (!w) { el.innerHTML = ''; return; }
+  el.innerHTML = '<span class="weather-badge">🌡 ' + w.label + ' · ~' + w.avgLow + '°–' + w.avgHigh + '°C</span>'
+    + '<span style="font-size:11px">' + w.tip + '</span>';
+}
+
 // ---- LIVE SYNC (other collaborators' edits) ----
 function subscribeTripChanges() {
   sb.channel('trip:' + tripId)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, payload => {
+      if (JSON.stringify(payload.new.itinerary) === JSON.stringify(tripData)) return; // preferences-only change (e.g. currency), not an itinerary edit
       if (payload.new.updated_by === currentUserId) return;
       tripData = payload.new.itinerary;
       if (activeDay === 'all') {
@@ -568,6 +636,7 @@ async function loadTrip() {
   document.getElementById('shareBtn').style.display = 'inline-flex';
 
   tripData = trip.itinerary;
+  tripPreferences = trip.preferences || {};
   document.title = (tripData.title || trip.destination) + ' - WanderAI';
   document.getElementById('tripTitle').textContent = tripData.title || trip.destination;
 
@@ -577,6 +646,13 @@ async function loadTrip() {
   if (days) meta.push(days+' days');
   if (trip.travelers) meta.push(trip.travelers+' traveler'+(trip.travelers>1?'s':''));
   document.getElementById('tripMeta').textContent = meta.join(' · ');
+
+  originCurrency = tripPreferences.currency?.origin || 'USD';
+  destCurrency = tripPreferences.currency?.destination || guessCurrency(trip.destination);
+  renderCurrencyBar();
+  fetchExchangeRate();
+
+  loadWeather(trip.destination, trip.start_date, trip.end_date);
 
   initMap();
   renderDayTabs(tripData.days||[]);
