@@ -1,6 +1,6 @@
 const Groq = require("groq-sdk");
 
-const SYSTEM_PROMPT = `You are TripAI, an expert travel planner. Generate complete travel itineraries as JSON ONLY — no markdown, no explanation.
+const SYSTEM_PROMPT = `You are WanderAI, an expert travel planner. Generate complete travel itineraries as JSON ONLY — no markdown, no explanation.
 
 Return this EXACT structure:
 {

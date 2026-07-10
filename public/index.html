@@ -3,15 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>TripAI - Plan Your Perfect Trip</title>
+<title>WanderAI - Plan Your Perfect Trip</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <!-- LANDING VIEW -->
 <div id="landing">
   <nav class="nav">
-    <a href="/" class="nav-brand">✈️ TripAI</a>
+    <a href="/" class="nav-brand">✈️ WanderAI</a>
     <div class="nav-right">
+      <div id="notifMount"></div>
       <button class="btn btn-ghost btn-sm" onclick="showAuth('login')">Log in</button>
       <button class="btn btn-primary btn-sm" onclick="showAuth('signup')">Sign up free</button>
     </div>
@@ -32,7 +36,7 @@
   </div>
   <div class="dest-strip">
     <h2>Anywhere in the world</h2>
-    <p>From a weekend city break to a 3-week adventure — TripAI handles every destination</p>
+    <p>From a weekend city break to a 3-week adventure — WanderAI handles every destination</p>
     <div class="dest-chips">
       <span class="dest-chip">🇯🇵 Japan</span><span class="dest-chip">🇮🇹 Italy</span><span class="dest-chip">🇪🇸 Spain</span>
       <span class="dest-chip">🇺🇸 USA</span><span class="dest-chip">🇫🇷 France</span><span class="dest-chip">🇬🇷 Greece</span>
@@ -48,7 +52,7 @@
     <div class="auth-box">
       <div class="auth-logo">
         <div class="logo-em">✈️</div>
-        <h1>TripAI</h1>
+        <h1>WanderAI</h1>
         <p>Your AI travel planner</p>
       </div>
       <div class="auth-tabs">
@@ -106,6 +110,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/nav.js"></script>
 <script>
 // Replace with your Supabase project values (set in Netlify env and inject, or hardcode public keys here)
 const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';

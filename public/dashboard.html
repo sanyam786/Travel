@@ -3,13 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Trips - TripAI</title>
+<title>My Trips - WanderAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <nav class="nav">
-  <a href="/" class="nav-brand">✈️ TripAI</a>
+  <a href="/" class="nav-brand">✈️ WanderAI</a>
   <div class="nav-right">
+    <div id="notifMount"></div>
     <div class="nav-user">
       <div class="avatar" id="navAvatar">?</div>
       <span id="navName" style="font-size:14px;font-weight:500"></span>
@@ -53,6 +57,7 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/nav.js"></script>
 <script>
 const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
 const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
@@ -95,10 +100,14 @@ async function loadTrips() {
   document.getElementById('navAvatar').textContent = name[0].toUpperCase();
   document.getElementById('navName').textContent = name;
 
-  const { data: trips, error } = await sb.from('trips')
-    .select('id,title,destination,origin,start_date,end_date,travelers,created_at')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false });
+  // RLS returns both owned and shared-with-you trips now — no user_id filter needed.
+  const [{ data: trips, error }, { data: collabRows }] = await Promise.all([
+    sb.from('trips')
+      .select('id,title,destination,origin,start_date,end_date,travelers,created_at,user_id')
+      .order('created_at', { ascending: false }),
+    sb.from('trip_collaborators').select('trip_id,role').eq('user_id', user.id).eq('status', 'accepted')
+  ]);
+  const roleByTrip = Object.fromEntries((collabRows || []).map(c => [c.trip_id, c.role]));
 
   document.getElementById('loadingTrips').style.display = 'none';
 
@@ -118,10 +127,17 @@ async function loadTrips() {
     const nights = t.start_date && t.end_date
       ? Math.ceil((new Date(t.end_date) - new Date(t.start_date))/86400000)
       : null;
+    const isOwner = t.user_id === user.id;
+    const roleBadge = isOwner ? '' : '<span class="badge badge-blue" style="position:absolute;top:8px;left:8px">'
+      + (roleByTrip[t.id] === 'editor' ? '✎ Editor' : '👁 Viewer') + '</span>';
+    const deleteBtn = isOwner
+      ? `<button class="btn btn-sm" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.35);color:#fff;border:none;padding:5px 9px;font-size:11px" onclick="askDelete(event,'${t.id}')">🗑 Delete</button>`
+      : '';
     return `<div class="trip-card" onclick="openTrip('${t.id}')">
       <div class="trip-card-img" style="background:linear-gradient(135deg,${c1},${c2})">
+        ${roleBadge}
         <span style="font-size:48px">${emoji}</span>
-        <button class="btn btn-sm" style="position:absolute;top:8px;right:8px;background:rgba(0,0,0,.35);color:#fff;border:none;padding:5px 9px;font-size:11px" onclick="askDelete(event,'${t.id}')">🗑 Delete</button>
+        ${deleteBtn}
       </div>
       <div class="trip-card-body">
         <div class="trip-card-title">${t.title || t.destination}</div>

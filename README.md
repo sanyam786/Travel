@@ -1,4 +1,4 @@
-# TripAI — AI-Powered Travel Planner
+# WanderAI — AI-Powered Travel Planner
 
 Plan any trip anywhere in the world with AI. Generates complete day-by-day itineraries with interactive maps, booking links, transport routes, and cost estimates.
 
@@ -26,32 +26,13 @@ Plan any trip anywhere in the world with AI. Generates complete day-by-day itine
    - **Project URL** (e.g. `https://abc123.supabase.co`)
    - **anon / public** key (long string starting with `eyJ`)
 
-### Step 3 — Create the database table
-In your Supabase project, go to **SQL Editor** and run:
-
-```sql
--- Create trips table
-create table trips (
-  id uuid default gen_random_uuid() primary key,
-  user_id uuid references auth.users not null,
-  title text not null,
-  origin text not null,
-  destination text not null,
-  start_date date,
-  end_date date,
-  travelers integer default 1,
-  preferences jsonb default '{}',
-  itinerary jsonb not null,
-  created_at timestamptz default now()
-);
-
--- Enable Row Level Security
-alter table trips enable row level security;
-
--- Users can only see and edit their own trips
-create policy "users_own_trips" on trips
-  for all using (auth.uid() = user_id);
-```
+### Step 3 — Create the database schema
+In your Supabase project, go to **SQL Editor**, paste the full contents of
+[`supabase-schema.sql`](supabase-schema.sql), and run it. It creates the
+`trips` table plus the collaboration schema (`trip_collaborators`,
+`notifications`, RLS policies, and the trigger functions that power
+in-app + email notifications) and enables Realtime on the tables that need
+live updates. The script is safe to re-run if you need to.
 
 ### Step 4 — Deploy to Netlify
 
@@ -74,6 +55,8 @@ Go to **Site settings → Environment variables** and add:
 | `GROQ_API_KEY` | Your new Groq API key (`gsk_...`) |
 | `SUPABASE_URL` | Your Supabase project URL |
 | `SUPABASE_ANON_KEY` | Your Supabase anon/public key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → `service_role` secret. **Never expose this client-side** — it's only read by the two collaboration functions below. |
+| `RESEND_API_KEY` | API key from [resend.com](https://resend.com) — used to send invite and change-notification emails. |
 
 ### Step 6 — Update Supabase keys in HTML files
 Open `public/index.html`, `public/dashboard.html`, `public/plan.html`, and `public/trip.html`.
@@ -139,7 +122,7 @@ trip-planner/
 - **Change AI model**: In `netlify/functions/generate-trip.js`, change `llama-3.3-70b-versatile` to any Groq-supported model
 - **Add more preferences**: Add new chips in `plan.html` and update the prompt in `generate-trip.js`
 - **Map tiles**: In `trip.html`, swap the CartoDB URL for any free Leaflet tile provider
-- **Branding**: Change "TripAI" and the ✈️ emoji throughout to your own brand name
+- **Branding**: Change "WanderAI" and the ✈️ emoji throughout to your own brand name
 
 ## Troubleshooting
 

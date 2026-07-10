@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Join a trip - WanderAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="logo-em">✈️</div>
+      <h1>WanderAI</h1>
+      <p>Your AI travel planner</p>
+    </div>
+
+    <div id="inviteBanner" class="alert alert-info">
+      <span>👥</span>
+      <div id="inviteBannerText">Checking your invite…</div>
+    </div>
+
+    <div id="authError" class="alert alert-err" style="display:none"></div>
+    <div id="authOk" class="alert alert-ok" style="display:none"></div>
+
+    <div id="joiningState" style="display:none;text-align:center;padding:20px 0">
+      <span class="spinner spinner-blue" style="width:28px;height:28px;border-width:3px"></span>
+      <p style="color:var(--muted);font-size:13px;margin-top:12px">Joining trip…</p>
+    </div>
+
+    <div id="authForms">
+      <div class="auth-tabs">
+        <div class="auth-tab on" id="tabLogin" onclick="switchTab('login')">Log in</div>
+        <div class="auth-tab" id="tabSignup" onclick="switchTab('signup')">Sign up</div>
+      </div>
+
+      <div id="loginForm">
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="loginEmail" class="form-input" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="loginPass" class="form-input" placeholder="••••••••" required>
+        </div>
+        <button class="btn btn-primary btn-full btn-lg" onclick="doLogin()" id="loginBtn">Log in &amp; join trip</button>
+        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">
+          No account? <a href="#" onclick="switchTab('signup')" style="color:var(--blue);font-weight:600">Sign up free</a>
+        </p>
+      </div>
+
+      <div id="signupForm" style="display:none">
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">First name</label>
+            <input type="text" id="signupFirst" class="form-input" placeholder="First name">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Last name</label>
+            <input type="text" id="signupLast" class="form-input" placeholder="Last name">
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="signupEmail" class="form-input" placeholder="you@example.com" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Password</label>
+          <input type="password" id="signupPass" class="form-input" placeholder="8+ characters" required>
+        </div>
+        <button class="btn btn-primary btn-full btn-lg" onclick="doSignup()" id="signupBtn">Create account &amp; join trip →</button>
+        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">
+          Already have an account? <a href="#" onclick="switchTab('login')" style="color:var(--blue);font-weight:600">Log in</a>
+        </p>
+      </div>
+    </div>
+
+    <button class="btn btn-ghost btn-sm" style="margin-top:16px" onclick="window.location.href='/'">← Back to home</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script>
+const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
+const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+// Stash invite params immediately so they survive a signup/login redirect.
+(function stashInviteParams() {
+  const params = new URLSearchParams(window.location.search);
+  const trip = params.get('trip');
+  const token = params.get('token');
+  if (trip) sessionStorage.setItem('inviteTrip', trip);
+  if (token) sessionStorage.setItem('inviteToken', token);
+})();
+
+function switchTab(tab) {
+  document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
+  document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('tabLogin').classList.toggle('on', tab === 'login');
+  document.getElementById('tabSignup').classList.toggle('on', tab === 'signup');
+  document.getElementById('authError').style.display = 'none';
+  document.getElementById('authOk').style.display = 'none';
+}
+
+function showErr(msg) {
+  const el = document.getElementById('authError');
+  el.textContent = '⚠ ' + msg;
+  el.style.display = 'flex';
+}
+
+async function joinTrip() {
+  document.getElementById('authForms').style.display = 'none';
+  document.getElementById('joiningState').style.display = 'block';
+  document.getElementById('inviteBannerText').textContent = 'Joining the trip…';
+
+  const { error } = await sb.rpc('claim_invites');
+  const tripId = sessionStorage.getItem('inviteTrip');
+  sessionStorage.removeItem('inviteTrip');
+  sessionStorage.removeItem('inviteToken');
+
+  if (error) {
+    document.getElementById('joiningState').style.display = 'none';
+    document.getElementById('authForms').style.display = 'block';
+    showErr('Could not join the trip: ' + error.message);
+    return;
+  }
+
+  window.location.href = tripId ? '/trip.html?id=' + tripId : '/dashboard.html';
+}
+
+async function doLogin() {
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  if (!email || !pass) return showErr('Please fill in all fields.');
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Logging in…';
+  const { error } = await sb.auth.signInWithPassword({ email, password: pass });
+  if (error) { showErr(error.message); btn.disabled = false; btn.textContent = 'Log in & join trip'; return; }
+  joinTrip();
+}
+
+async function doSignup() {
+  const first = document.getElementById('signupFirst').value.trim();
+  const last = document.getElementById('signupLast').value.trim();
+  const email = document.getElementById('signupEmail').value.trim();
+  const pass = document.getElementById('signupPass').value;
+  if (!email || !pass) return showErr('Email and password are required.');
+  if (pass.length < 8) return showErr('Password must be at least 8 characters.');
+  const btn = document.getElementById('signupBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Creating account…';
+  const { data, error } = await sb.auth.signUp({
+    email, password: pass,
+    options: { data: { full_name: (first + ' ' + last).trim() || email.split('@')[0] } }
+  });
+  if (error) { showErr(error.message); btn.disabled = false; btn.textContent = 'Create account & join trip →'; return; }
+  if (data.session) { joinTrip(); }
+  else {
+    btn.disabled = false; btn.textContent = 'Create account & join trip →';
+    document.getElementById('authOk').textContent = '✓ Account created! Check your email to confirm, then log in to join the trip.';
+    document.getElementById('authOk').style.display = 'flex';
+  }
+}
+
+(async () => {
+  const { data: { session } } = await sb.auth.getSession();
+  if (session) { joinTrip(); }
+  else { document.getElementById('inviteBannerText').textContent = "You've been invited to collaborate on a trip. Sign up or log in to join."; }
+})();
+</script>
+</body>
+</html>

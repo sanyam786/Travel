@@ -3,15 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Trip - TripAI</title>
+<title>Trip - WanderAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/css/style.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 </head>
 <body>
 <nav class="nav">
-  <a href="/dashboard.html" class="nav-brand">✈️ TripAI</a>
+  <a href="/dashboard.html" class="nav-brand">✈️ WanderAI</a>
   <div class="nav-right" id="navRight">
+    <div id="notifMount"></div>
     <a href="/dashboard.html" class="btn btn-ghost btn-sm">← My trips</a>
+    <button class="btn btn-ghost btn-sm" id="shareBtn" style="display:none" onclick="openShareModal()">👥 Share</button>
     <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 Print</button>
   </div>
 </nav>
@@ -35,6 +40,7 @@
   <!-- MAP -->
   <div id="mapDiv">
     <div id="map"></div>
+    <div id="syncToast" class="sync-toast"></div>
     <div class="map-legend">
       <h4>Transport</h4>
       <div class="leg-row"><div class="leg-line" style="background:#EF4444;border-top:2.5px dashed #EF4444;height:0"></div> Flight</div>
@@ -45,7 +51,32 @@
   </div>
 </div>
 
+<!-- SHARE / COLLABORATORS MODAL -->
+<div id="shareModalOverlay" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3 style="margin-bottom:4px">Share this trip</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Invite friends or family to view or edit this itinerary together.</p>
+    <div id="collabList" style="margin-bottom:16px"></div>
+    <div id="inviteFormWrap" style="display:none;border-top:1px solid var(--border);padding-top:16px">
+      <div class="form-group">
+        <label class="form-label">Invite by email</label>
+        <input type="email" id="inviteEmail" class="form-input" placeholder="friend@example.com">
+      </div>
+      <div class="form-group">
+        <label class="form-label">Role</label>
+        <select id="inviteRole" class="form-input form-select">
+          <option value="editor">Editor — can view and modify</option>
+          <option value="viewer">Viewer — can view only</option>
+        </select>
+      </div>
+      <button class="btn btn-primary btn-full" id="inviteSendBtn" onclick="submitInvite()">Send invite</button>
+    </div>
+    <button class="btn btn-ghost btn-full" style="margin-top:14px" onclick="closeShareModal()">Close</button>
+  </div>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/nav.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script>
 const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
@@ -55,6 +86,11 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 let map, markersLayer, routesLayer, tripData;
 let activeDay = 'all';
 const markersByPlaceId = {};
+
+let tripId = null;
+let currentUserId = null;
+let myRole = 'viewer';
+let saveTimer = null;
 
 const CAT_ICONS = {
   attraction:'🏛️', restaurant:'🍽️', hotel:'🏨', museum:'🎨',
@@ -109,7 +145,6 @@ function mkPopup(place, color) {
 
 function drawRoutes(days) {
   routesLayer.clearLayers();
-  const allPlaces = days.flatMap(d => d.places || []);
   const byDay = {};
   days.forEach((d,i) => byDay[i] = (d.places||[]).filter(p=>p.lat&&p.lng));
 
@@ -185,7 +220,7 @@ function clickPlace(id) {
 // ---- SIDEBAR RENDER ----
 function renderDayTabs(days) {
   const tabs = document.getElementById('dayTabs');
-  tabs.innerHTML = '<button class="dtab on" id="dtab-all" onclick="selectDay('all',-1)">All Days</button>'
+  tabs.innerHTML = '<button class="dtab on" id="dtab-all" onclick="selectDay(\'all\',-1)">All Days</button>'
     + days.map((d,i)=>'<button class="dtab" id="dtab-'+i+'" onclick="selectDay('+i+','+i+')" style="">D'+(i+1)+'</button>').join('');
 }
 
@@ -221,32 +256,43 @@ function selectDay(key, idx) {
 function renderDay(day, di) {
   const col = dayColor(di);
   const t = day.transport;
+  const canEdit = myRole !== 'viewer';
   let html = '';
 
   if (t && t.from) {
     const tIcon = TRANSPORT_ICONS[t.mode]||'🚌';
-    html += '<div class="tcard"><div class="tcard-route">'+tIcon+' '+t.from+' → '+t.to+'</div>'
+    html += '<div class="tcard"><div class="tcard-route">'+tIcon+' '
+      +(canEdit?'<span class="editable" data-edit="transport|from">'+t.from+'</span>':t.from)+' → '
+      +(canEdit?'<span class="editable" data-edit="transport|to">'+t.to+'</span>':t.to)+'</div>'
       +'<div class="tcard-meta">'
-      +(t.duration?'<span>⏱ '+t.duration+'</span>':'')
-      +(t.estimatedCost?'<span>💰 '+t.estimatedCost+'</span>':'')
+      +'<span>⏱ '+(canEdit?'<span class="editable" data-edit="transport|duration">'+(t.duration||'set duration')+'</span>':(t.duration||''))+'</span>'
+      +'<span>💰 '+(canEdit?'<span class="editable" data-edit="transport|estimatedCost">'+(t.estimatedCost||'set cost')+'</span>':(t.estimatedCost||''))+'</span>'
       +'</div>'
-      +(t.notes?'<div style="font-size:12px;color:var(--muted);margin-top:5px;font-style:italic">'+t.notes+'</div>':'')
+      +'<div style="font-size:12px;color:var(--muted);margin-top:5px;font-style:italic'+(canEdit?'" class="editable" data-edit="transport|notes':'')+'">'+(t.notes||(canEdit?'Add notes…':''))+'</div>'
       +(t.bookingUrl?'<a href="'+t.bookingUrl+'" target="_blank" style="font-size:12px;color:var(--blue);font-weight:600">Book '+t.mode+' →</a>':'')
       +'</div>';
   }
 
-  html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col+';margin-bottom:10px">'
+  html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col+';margin-bottom:4px">'
     +'Day '+(di+1)+' · '+(day.city||'')+', '+(day.country||'')+'</div>';
+  html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px'+(canEdit?'" class="editable" data-edit="day|title':'')+'">'
+    +(day.title || (canEdit?'Add a theme for this day…':''))+'</div>';
 
   (day.places||[]).forEach(p => {
     const pIcon = CAT_ICONS[p.category]||CAT_ICONS.default;
-    html += '<div class="pitem" id="card-'+p.id+'" onclick="clickPlace(''+p.id+'')">'
+    html += '<div class="pitem" id="card-'+p.id+'" onclick="clickPlace(\''+p.id+'\')">'
+      +(canEdit?'<span class="pitem-remove" data-pid="'+p.id+'">✕</span>':'')
       +'<div class="pitem-hdr"><div class="pitem-ico">'+pIcon+'</div>'
-      +'<div><div class="pitem-name">'+p.name+'</div>'
-      +'<div class="pitem-time">'+p.timeOfDay+' · '+p.duration+'</div></div></div>'
-      +'<div class="pitem-desc">'+(p.description||'').substring(0,100)+'…</div>'
+      +'<div><div class="pitem-name'+(canEdit?' editable" data-edit="place|'+p.id+'|name':'')+'">'+p.name+'</div>'
+      +'<div class="pitem-time">'
+      +(canEdit?'<span class="editable" data-edit="place|'+p.id+'|timeOfDay">'+p.timeOfDay+'</span>':p.timeOfDay)
+      +' · '
+      +(canEdit?'<span class="editable" data-edit="place|'+p.id+'|duration">'+p.duration+'</span>':p.duration)
+      +'</div></div></div>'
+      +'<div class="pitem-desc'+(canEdit?' editable" data-edit="place|'+p.id+'|description':'')+'">'
+      +(canEdit ? (p.description||'Add a description…') : (p.description||'').substring(0,100)+'…')+'</div>'
       +'<div class="pitem-tags">'
-      +(p.cost?'<span class="badge badge-blue">'+p.cost+'</span>':'')
+      +'<span class="badge badge-blue'+(canEdit?' editable" data-edit="place|'+p.id+'|cost':'')+'">'+(p.cost||(canEdit?'Set cost':''))+'</span>'
       +(p.bookingRequired?'<span class="badge badge-amber">🎟 Book ahead</span>':'')
       +(p.babyFriendly===true?'<span class="badge badge-green">👶 Baby ok</span>':'')
       +(p.babyFriendly===false?'<span class="badge badge-red">⚠ Carrier</span>':'')
@@ -255,7 +301,10 @@ function renderDay(day, di) {
       +'</div>';
   });
 
+  if (canEdit) html += '<button class="add-place-btn" id="addPlaceBtn">+ Add place</button>';
+
   document.getElementById('sbBody').innerHTML = html;
+  if (canEdit) attachEditHandlers(di);
 }
 
 function renderAllDays(days) {
@@ -290,7 +339,7 @@ function renderAllDays(days) {
       +'</div>';
     (day.places||[]).slice(0,3).forEach(p => {
       const pIcon = CAT_ICONS[p.category]||CAT_ICONS.default;
-      html += '<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="clickPlace(''+p.id+'')">'
+      html += '<div style="display:flex;align-items:center;gap:7px;padding:5px 0;border-bottom:1px solid var(--border);font-size:13px;cursor:pointer" onclick="clickPlace(\''+p.id+'\')">'
         +'<span>'+pIcon+'</span><span>'+p.name+'</span>'
         +(p.cost&&p.cost!=='Free'?'<span style="margin-left:auto;font-size:12px;color:var(--muted)">'+p.cost+'</span>':'')
         +'</div>';
@@ -304,20 +353,222 @@ function renderAllDays(days) {
   document.getElementById('sbBody').innerHTML = html;
 }
 
+// ---- INLINE EDITING (editor/owner only) ----
+function attachEditHandlers(di) {
+  document.querySelectorAll('#sbBody [data-edit]').forEach(el => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); beginInlineEdit(el, di); });
+  });
+  document.querySelectorAll('#sbBody .pitem-remove').forEach(el => {
+    el.addEventListener('click', (e) => { e.stopPropagation(); removePlace(di, el.dataset.pid); });
+  });
+  const addBtn = document.getElementById('addPlaceBtn');
+  if (addBtn) addBtn.addEventListener('click', () => addPlace(di));
+}
+
+function beginInlineEdit(el, di) {
+  const [kind, a, b] = el.dataset.edit.split('|');
+  let getVal, setVal, multiline = false;
+
+  if (kind === 'day') {
+    getVal = () => tripData.days[di].title || '';
+    setVal = v => { tripData.days[di].title = v; };
+  } else if (kind === 'transport') {
+    const field = a;
+    getVal = () => (tripData.days[di].transport && tripData.days[di].transport[field]) || '';
+    setVal = v => { tripData.days[di].transport = tripData.days[di].transport || {}; tripData.days[di].transport[field] = v; };
+  } else if (kind === 'place') {
+    const pid = a, field = b;
+    const place = (tripData.days[di].places || []).find(p => p.id === pid);
+    getVal = () => (place && place[field]) || '';
+    setVal = v => { if (place) place[field] = v; };
+    multiline = field === 'description';
+  } else return;
+
+  const current = getVal();
+  const input = document.createElement(multiline ? 'textarea' : 'input');
+  input.className = 'inline-input';
+  input.value = current;
+  if (multiline) input.rows = 2;
+  el.replaceWith(input);
+  input.focus();
+  input.select();
+
+  let done = false;
+  const finish = (commit) => {
+    if (done) return;
+    done = true;
+    const val = input.value.trim();
+    if (commit && val !== current) { setVal(val); scheduleSave(); }
+    renderDay(tripData.days[di], di);
+  };
+  input.addEventListener('blur', () => finish(true));
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !multiline) { e.preventDefault(); finish(true); }
+    if (e.key === 'Escape') finish(false);
+  });
+}
+
+function addPlace(di) {
+  const day = tripData.days[di];
+  day.places = day.places || [];
+  const newId = 'custom-' + Date.now().toString(36);
+  day.places.push({ id: newId, name: 'New place', category: 'attraction', timeOfDay: 'Morning', duration: '1 hour', description: '', cost: '', lat: 0, lng: 0 });
+  scheduleSave();
+  renderDay(day, di);
+}
+
+function removePlace(di, pid) {
+  if (!confirm('Remove this place from the itinerary?')) return;
+  const day = tripData.days[di];
+  day.places = (day.places || []).filter(p => p.id !== pid);
+  scheduleSave();
+  renderDay(day, di);
+}
+
+function scheduleSave() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveTripEdit, 3000);
+}
+
+async function saveTripEdit() {
+  if (myRole === 'viewer') return;
+  const { error } = await sb.from('trips').update({ itinerary: tripData }).eq('id', tripId);
+  if (error) { console.error('Save failed', error); return; }
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) return;
+  fetch('/api/notify-collaborators', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+    body: JSON.stringify({ tripId, changeType: 'itinerary_edit' })
+  }).catch(() => {});
+}
+
+// ---- LIVE SYNC (other collaborators' edits) ----
+function subscribeTripChanges() {
+  sb.channel('trip:' + tripId)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, payload => {
+      if (payload.new.updated_by === currentUserId) return;
+      tripData = payload.new.itinerary;
+      if (activeDay === 'all') {
+        renderAllDays(tripData.days || []);
+        showAllMarkers(tripData.days || []);
+        drawRoutes(tripData.days || []);
+      } else {
+        renderDay(tripData.days[activeDay], activeDay);
+        showDayMarkers(tripData.days[activeDay], activeDay);
+      }
+      showSyncToast();
+    })
+    .subscribe();
+}
+
+function showSyncToast() {
+  const el = document.getElementById('syncToast');
+  el.textContent = '🔄 Updated by a collaborator · just now';
+  el.classList.add('show');
+  setTimeout(() => el.classList.remove('show'), 3000);
+}
+
+// ---- SHARE MODAL ----
+function openShareModal() {
+  document.getElementById('shareModalOverlay').style.display = 'flex';
+  loadCollaborators();
+}
+function closeShareModal() {
+  document.getElementById('shareModalOverlay').style.display = 'none';
+}
+
+async function loadCollaborators() {
+  const { data } = await sb.from('trip_collaborators').select('id,invited_email,role,status').eq('trip_id', tripId).order('created_at');
+  renderCollaborators(data || []);
+}
+
+function renderCollaborators(list) {
+  const box = document.getElementById('collabList');
+  const isOwner = myRole === 'owner';
+  if (!list.length) {
+    box.innerHTML = '<p style="font-size:13px;color:var(--muted)">No one else has been invited yet.</p>';
+  } else {
+    box.innerHTML = list.map(c => '<div class="collab-row">'
+      + '<div class="collab-email">' + c.invited_email + '</div>'
+      + '<div class="collab-status">' + (c.status === 'pending' ? 'Invited · pending' : 'Joined') + '</div>'
+      + '<div class="collab-actions">'
+      + (isOwner
+          ? '<select class="role-select" onchange="changeRole(\'' + c.id + '\', this.value)">'
+            + '<option value="editor"' + (c.role === 'editor' ? ' selected' : '') + '>Editor</option>'
+            + '<option value="viewer"' + (c.role === 'viewer' ? ' selected' : '') + '>Viewer</option>'
+            + '</select>'
+            + '<button class="btn btn-ghost btn-sm" onclick="removeCollaborator(\'' + c.id + '\')">Remove</button>'
+          : '<span class="badge badge-blue">' + c.role + '</span>')
+      + '</div></div>').join('');
+  }
+  document.getElementById('inviteFormWrap').style.display = isOwner ? 'block' : 'none';
+}
+
+async function changeRole(id, role) {
+  await sb.from('trip_collaborators').update({ role }).eq('id', id);
+  loadCollaborators();
+}
+
+async function removeCollaborator(id) {
+  if (!confirm('Remove this collaborator?')) return;
+  await sb.from('trip_collaborators').delete().eq('id', id);
+  loadCollaborators();
+}
+
+async function submitInvite() {
+  const emailInput = document.getElementById('inviteEmail');
+  const roleInput = document.getElementById('inviteRole');
+  const email = emailInput.value.trim().toLowerCase();
+  if (!email) return;
+  const btn = document.getElementById('inviteSendBtn');
+  btn.disabled = true;
+  btn.textContent = 'Sending…';
+
+  const { data: { session } } = await sb.auth.getSession();
+  const { error } = await sb.from('trip_collaborators').upsert(
+    { trip_id: tripId, invited_email: email, role: roleInput.value, invited_by: session.user.id },
+    { onConflict: 'trip_id,invited_email' }
+  );
+  if (error) {
+    alert('Could not invite: ' + error.message);
+    btn.disabled = false; btn.textContent = 'Send invite';
+    return;
+  }
+  await fetch('/api/invite-collaborator', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+    body: JSON.stringify({ tripId, collaboratorEmail: email })
+  }).catch(() => {});
+
+  emailInput.value = '';
+  btn.disabled = false; btn.textContent = 'Send invite';
+  loadCollaborators();
+}
+
 // ---- LOAD TRIP ----
 async function loadTrip() {
   const { data: { session } } = await sb.auth.getSession();
   if (!session) { window.location.href = '/'; return; }
+  currentUserId = session.user.id;
 
   const params = new URLSearchParams(window.location.search);
-  const tripId = params.get('id');
+  tripId = params.get('id');
   if (!tripId) { window.location.href = '/dashboard.html'; return; }
 
-  const { data: trip, error } = await sb.from('trips').select('*').eq('id',tripId).eq('user_id',session.user.id).single();
+  const { data: trip, error } = await sb.from('trips').select('*').eq('id',tripId).single();
   if (error || !trip) { alert('Trip not found'); window.location.href = '/dashboard.html'; return; }
 
+  if (trip.user_id === currentUserId) {
+    myRole = 'owner';
+  } else {
+    const { data: collab } = await sb.from('trip_collaborators').select('role').eq('trip_id', tripId).eq('user_id', currentUserId).eq('status','accepted').maybeSingle();
+    myRole = collab?.role || 'viewer';
+  }
+  document.getElementById('shareBtn').style.display = 'inline-flex';
+
   tripData = trip.itinerary;
-  document.title = (tripData.title || trip.destination) + ' - TripAI';
+  document.title = (tripData.title || trip.destination) + ' - WanderAI';
   document.getElementById('tripTitle').textContent = tripData.title || trip.destination;
 
   const days = tripData.days?.length || 0;
@@ -336,6 +587,8 @@ async function loadTrip() {
   // Active all-tab
   const allTab = document.getElementById('dtab-all');
   if (allTab) { allTab.style.background='var(--blue)';allTab.style.borderColor='var(--blue)';allTab.style.color='#fff'; }
+
+  subscribeTripChanges();
 }
 
 loadTrip();

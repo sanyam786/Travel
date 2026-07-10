@@ -1,8 +1,9 @@
 {
-  "name": "ai-trip-planner",
+  "name": "wanderai",
   "version": "1.0.0",
-  "description": "AI-powered travel itinerary planner with interactive maps",
+  "description": "WanderAI — AI-powered travel itinerary planner with interactive maps and trip collaboration",
   "dependencies": {
-    "groq-sdk": "^0.7.0"
+    "groq-sdk": "^0.7.0",
+    "@supabase/supabase-js": "^2.45.0"
   }
 }
