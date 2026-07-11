@@ -467,6 +467,7 @@ function scheduleSave() {
 
 async function saveTripEdit() {
   if (myRole === 'viewer') return;
+  markSelfWrite();
   const { error } = await sb.from('trips').update({ itinerary: tripData }).eq('id', tripId);
   if (error) { console.error('Save failed', error); return; }
   const { data: { session } } = await sb.auth.getSession();
@@ -534,6 +535,7 @@ async function onCurrencyChange() {
   if (activeDay === 'all') renderAllDays(tripData.days || []);
   else renderDay(tripData.days[activeDay], activeDay);
   if (myRole === 'viewer') return; // display-only for viewers; RLS would block a persisted write anyway
+  markSelfWrite();
   tripPreferences.currency = { origin: baseCurrency, display: displayCurrency };
   await sb.from('trips').update({ preferences: tripPreferences }).eq('id', tripId);
 }
@@ -551,11 +553,19 @@ async function loadWeather(place, startDate, endDate) {
 }
 
 // ---- LIVE SYNC (other collaborators' edits) ----
+// Postgres jsonb doesn't preserve object key order, so a round-tripped itinerary
+// can fail a JSON.stringify equality check even when nothing actually changed —
+// and the "preferences-only change" trigger skip means updated_by isn't reliable
+// either. So explicitly mark our own writes and ignore the realtime echo they
+// produce for a few seconds, rather than trying to infer it after the fact.
+let ignoreEchoUntil = 0;
+function markSelfWrite() { ignoreEchoUntil = Date.now() + 4000; }
+
 function subscribeTripChanges() {
   sb.channel('trip:' + tripId)
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'trips', filter: `id=eq.${tripId}` }, payload => {
+      if (Date.now() < ignoreEchoUntil) return;
       if (JSON.stringify(payload.new.itinerary) === JSON.stringify(tripData)) return; // preferences-only change (e.g. currency), not an itinerary edit
-      if (payload.new.updated_by === currentUserId) return;
       tripData = payload.new.itinerary;
       if (activeDay === 'all') {
         renderAllDays(tripData.days || []);

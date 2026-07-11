@@ -144,7 +144,7 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 .popup-desc{font-size:12px;color:var(--muted);line-height:1.4;margin-bottom:7px;max-width:200px}
 .popup-book{display:inline-block;padding:5px 11px;background:var(--grad-primary);color:#fff;border-radius:7px;font-size:12px;font-weight:600}
 
-.auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 15% 10%,#EFF6FF 0%,transparent 45%),radial-gradient(circle at 85% 90%,#F5F3FF 0%,transparent 45%),var(--bg);padding:20px}
+.auth-wrap{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;background:radial-gradient(circle at 15% 10%,#EFF6FF 0%,transparent 45%),radial-gradient(circle at 85% 90%,#F5F3FF 0%,transparent 45%),var(--bg);padding:20px}
 .auth-box{width:100%;max-width:420px;background:#fff;border-radius:var(--r-lg);box-shadow:var(--sh-lg);padding:38px;border:1px solid var(--border)}
 .auth-logo{text-align:center;margin-bottom:28px}
 .auth-logo .logo-em{font-size:40px;margin-bottom:8px}
