@@ -24,8 +24,8 @@
     <h1>Plan any trip with <em>AI</em> in minutes</h1>
     <p>Tell us where you want to go. Our AI builds a complete day-by-day itinerary with maps, bookings, costs, and tips.</p>
     <div class="hero-btns">
-      <button class="btn btn-lg" style="background:#fff;color:var(--blue)" onclick="showAuth('signup')">Start planning for free →</button>
-      <button class="btn btn-lg" style="background:rgba(255,255,255,.15);color:#fff;border:2px solid rgba(255,255,255,.4)" onclick="showAuth('login')">Log in</button>
+      <button class="btn btn-primary btn-lg" onclick="showAuth('signup')">Start planning for free →</button>
+      <button class="btn btn-lg" style="background:rgba(255,255,255,.08);color:#fff;border:1.5px solid rgba(255,255,255,.25)" onclick="showAuth('login')">Log in</button>
     </div>
   </div>
   <div class="features">
@@ -119,7 +119,7 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
 
 function showAuth(tab) {
   document.getElementById('landing').style.display = 'none';
-  document.getElementById('authView').style.display = 'flex';
+  document.getElementById('authView').style.display = 'block';
   switchTab(tab);
 }
 

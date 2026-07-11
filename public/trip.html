@@ -7,8 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/css/style.css">
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
 <nav class="nav">
@@ -111,9 +111,9 @@ const TRANSPORT_ICONS = {
   flight:'✈️', train:'🚄', car:'🚗', bus:'🚌', boat:'⛵', walk:'🚶', ferry:'⛴️'
 };
 const CITY_GRADIENTS = [
-  ['#2563EB','#7C3AED'],['#DC2626','#EA580C'],['#059669','#0891B2'],
-  ['#7C3AED','#DB2777'],['#D97706','#DC2626'],['#0891B2','#2563EB'],
-  ['#1D4ED8','#059669'],['#BE185D','#7C3AED']
+  ['#F5A623','#F2617A'],['#2DD4BF','#38BDF8'],['#F2617A','#A78BFA'],
+  ['#FBBF24','#F5A623'],['#38BDF8','#2DD4BF'],['#A78BFA','#F2617A'],
+  ['#84CC16','#2DD4BF'],['#FB7185','#FBBF24']
 ];
 
 function dayColor(idx) {
@@ -124,7 +124,7 @@ function dayColor(idx) {
 // ---- MAP INIT ----
 function initMap() {
   map = L.map('map', { zoomControl: true }).setView([20, 0], 2);
-  L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '© CartoDB © OSM', subdomains: 'abcd', maxZoom: 19
   }).addTo(map);
   map.zoomControl.setPosition('topright');
@@ -327,7 +327,7 @@ function renderAllDays(days) {
   let html = '';
 
   if (itin.urgentBookings && itin.urgentBookings.length) {
-    html += '<div style="background:#FEF2F2;border:1px solid #FECACA;border-radius:8px;padding:12px;margin-bottom:14px">'
+    html += '<div style="background:rgba(248,113,113,.1);border:1px solid rgba(248,113,113,.3);border-radius:8px;padding:12px;margin-bottom:14px">'
       +'<div style="font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px">🚨 Book these first</div>';
     itin.urgentBookings.forEach(u => {
       html += '<div style="font-size:13px;margin-bottom:6px"><strong>'+u.what+'</strong> '
@@ -339,9 +339,9 @@ function renderAllDays(days) {
 
   if (itin.budgetEstimate) {
     const b = itin.budgetEstimate;
-    html += '<div style="background:var(--blue-l);border:1px solid #BFDBFE;border-radius:8px;padding:12px;margin-bottom:14px">'
+    html += '<div style="background:var(--blue-l);border:1px solid rgba(245,166,35,.3);border-radius:8px;padding:12px;margin-bottom:14px">'
       +'<div style="font-size:12px;font-weight:700;color:var(--blue);margin-bottom:8px">💰 Budget estimate</div>'
-      +Object.entries(b).map(([k,v])=>'<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px solid #BFDBFE"><span>'+k.charAt(0).toUpperCase()+k.slice(1)+'</span><span style="font-weight:600">'+WanderCurrency.formatCost(v, baseCurrency, showCurrency, currentRate)+'</span></div>').join('')
+      +Object.entries(b).map(([k,v])=>'<div style="display:flex;justify-content:space-between;font-size:13px;padding:3px 0;border-bottom:1px solid rgba(245,166,35,.3)"><span>'+k.charAt(0).toUpperCase()+k.slice(1)+'</span><span style="font-weight:600">'+WanderCurrency.formatCost(v, baseCurrency, showCurrency, currentRate)+'</span></div>').join('')
       +'</div>';
   }
 
