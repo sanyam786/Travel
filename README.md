@@ -57,6 +57,9 @@ Go to **Site settings → Environment variables** and add:
 | `SUPABASE_ANON_KEY` | Your Supabase anon/public key |
 | `SUPABASE_SERVICE_ROLE_KEY` | Supabase → Settings → API → `service_role` secret. **Never expose this client-side** — it's only read by the two collaboration functions below. |
 | `RESEND_API_KEY` | API key from [resend.com](https://resend.com) — used to send invite and change-notification emails. |
+| `RESEND_FROM_EMAIL` | Optional. Defaults to `WanderAI <onboarding@resend.dev>`. Set this once you verify your own domain in Resend (see note below). |
+
+> ⚠️ **Invite emails not arriving?** By default Resend accounts run in **sandbox mode**, and the `onboarding@resend.dev` sender can only deliver to the email address you signed up to Resend with — not to the people you're actually inviting. Everything else still works (the invite is saved and a shareable link is generated), but real recipients won't get an email until you [verify a sending domain](https://resend.com/domains) in Resend and set `RESEND_FROM_EMAIL` to an address on that domain (e.g. `WanderAI <invites@yourdomain.com>`). Until then, the app will show you the invite link directly so you can share it manually.
 
 ### Step 6 — Update Supabase keys in HTML files
 Open `public/index.html`, `public/dashboard.html`, `public/plan.html`, and `public/trip.html`.

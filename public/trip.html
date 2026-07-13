@@ -687,11 +687,27 @@ async function submitInvite() {
     btn.disabled = false; btn.textContent = 'Send invite';
     return;
   }
-  await fetch('/api/invite-collaborator', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
-    body: JSON.stringify({ tripId, collaboratorEmail: email })
-  }).catch(() => {});
+  try {
+    const res = await fetch('/api/invite-collaborator', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({ tripId, collaboratorEmail: email })
+    });
+    const data = await res.json();
+    if (!data.success) {
+      alert('Invite saved, but something went wrong sending the notification: ' + (data.error || 'unknown error'));
+    } else if (!data.emailSent) {
+      // Most common cause: Resend's sandbox sender (onboarding@resend.dev) can only deliver to
+      // your own Resend account email until you verify a custom domain. Offer the link directly
+      // so the invite isn't a dead end.
+      prompt(
+        "Invite saved, but the email couldn't be sent (" + (data.warning || 'email not configured') + ").\nShare this link with them directly:",
+        data.link || ''
+      );
+    }
+  } catch (err) {
+    alert('Invite saved, but the invite email request failed: ' + err.message);
+  }
 
   emailInput.value = '';
   btn.disabled = false; btn.textContent = 'Send invite';

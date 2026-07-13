@@ -81,7 +81,7 @@ exports.handler = async (event) => {
         method: "POST",
         headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, "Content-Type": "application/json" },
         body: JSON.stringify({
-          from: "WanderAI <onboarding@resend.dev>",
+          from: process.env.RESEND_FROM_EMAIL || "WanderAI <onboarding@resend.dev>",
           to: [email],
           subject,
           html: `<p>${subject}.</p><p><a href="${process.env.URL || ""}/trip.html?id=${trip.id}">View the trip →</a></p>`
