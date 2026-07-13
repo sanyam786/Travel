@@ -16,6 +16,7 @@
   <div class="nav-right" id="navRight">
     <div id="notifMount"></div>
     <a href="/dashboard.html" class="btn btn-ghost btn-sm">← <span class="btn-label">My trips</span></a>
+    <button class="btn btn-ghost btn-sm" id="regenTripBtn" style="display:none" onclick="openRegenModal('trip')">🔄 <span class="btn-label">Regenerate</span></button>
     <button class="btn btn-ghost btn-sm" id="shareBtn" style="display:none" onclick="openShareModal()">👥 <span class="btn-label">Share</span></button>
     <button class="btn btn-primary btn-sm" onclick="window.print()">🖨 <span class="btn-label">Print</span></button>
   </div>
@@ -77,6 +78,28 @@
   </div>
 </div>
 
+<!-- REGENERATE MODAL -->
+<div id="regenModalOverlay" class="modal-overlay" style="display:none">
+  <div class="modal-box">
+    <h3 id="regenTitle" style="margin-bottom:4px">Regenerate this trip</h3>
+    <p id="regenSubtitle" style="font-size:13px;color:var(--muted);margin-bottom:16px">This replaces the current plan — it can't be undone.</p>
+    <div class="form-group">
+      <label class="form-label">What would you like different?</label>
+      <textarea id="regenFeedback" class="form-input" rows="4" placeholder="e.g. Less museums, more outdoor activities. Swap the hotel area for somewhere quieter. Make the pace more relaxed."></textarea>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:6px">
+      <button class="btn btn-ghost btn-full" onclick="closeRegenModal()">Cancel</button>
+      <button class="btn btn-primary btn-full" id="regenSubmitBtn" onclick="submitRegenerate()">🔄 Regenerate</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="regenOverlay" style="display:none">
+  <div class="spinner" style="width:48px;height:48px;border-width:4px;border-color:rgba(245,166,35,.15);border-top-color:var(--blue)"></div>
+  <h3>AI is regenerating…</h3>
+  <p>This can take 15–30 seconds</p>
+</div>
+
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <script src="/js/nav.js"></script>
 <script src="/js/weather.js"></script>
@@ -101,6 +124,14 @@ let displayCurrency = 'USD'; // the currency currently shown (converted via curr
 let destGuess = 'USD';       // guessed local currency of the destination, for the quick-switch button
 let currentRate = 1;
 let rateAvailable = true;
+
+let originForRegen = '';
+let destinationForRegen = '';
+let startDateForRegen = '';
+let endDateForRegen = '';
+let travelersForRegen = 1;
+let regenScope = 'trip';
+let regenDayIndex = -1;
 
 const CAT_ICONS = {
   attraction:'🏛️', restaurant:'🍽️', hotel:'🏨', museum:'🎨',
@@ -286,8 +317,11 @@ function renderDay(day, di) {
       +'</div>';
   }
 
-  html += '<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col+';margin-bottom:4px">'
-    +'Day '+(di+1)+' · '+(day.city||'')+', '+(day.country||'')+'</div>';
+  html += '<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:4px">'
+    +'<div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:'+col+'">'
+    +'Day '+(di+1)+' · '+(day.city||'')+', '+(day.country||'')+'</div>'
+    +(canEdit?'<button class="btn btn-ghost btn-sm" style="padding:3px 9px;font-size:11px;flex-shrink:0" onclick="openRegenModal(\'day\','+di+')">🔄 Regenerate day</button>':'')
+    +'</div>';
   html += '<div style="font-size:13px;font-weight:600;margin-bottom:10px'+(canEdit?'" class="editable" data-edit="day|title':'')+'">'
     +(day.title || (canEdit?'Add a theme for this day…':''))+'</div>';
 
@@ -465,7 +499,7 @@ function scheduleSave() {
   saveTimer = setTimeout(saveTripEdit, 3000);
 }
 
-async function saveTripEdit() {
+async function saveTripEdit(changeType) {
   if (myRole === 'viewer') return;
   markSelfWrite();
   const { error } = await sb.from('trips').update({ itinerary: tripData }).eq('id', tripId);
@@ -475,7 +509,7 @@ async function saveTripEdit() {
   fetch('/api/notify-collaborators', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
-    body: JSON.stringify({ tripId, changeType: 'itinerary_edit' })
+    body: JSON.stringify({ tripId, changeType: changeType || 'itinerary_edit' })
   }).catch(() => {});
 }
 
@@ -664,6 +698,80 @@ async function submitInvite() {
   loadCollaborators();
 }
 
+// ---- REGENERATE (whole trip or a single day, guided by feedback) ----
+function openRegenModal(scope, dayIndex) {
+  regenScope = scope;
+  regenDayIndex = dayIndex != null ? dayIndex : -1;
+  const day = regenScope === 'day' ? tripData.days[regenDayIndex] : null;
+  document.getElementById('regenTitle').textContent = regenScope === 'day'
+    ? 'Regenerate Day ' + (regenDayIndex + 1) + (day && day.city ? ' · ' + day.city : '')
+    : 'Regenerate this trip';
+  document.getElementById('regenSubtitle').textContent = regenScope === 'day'
+    ? "This replaces just this day's plan — it can't be undone."
+    : "This replaces the whole plan — it can't be undone.";
+  document.getElementById('regenFeedback').value = '';
+  document.getElementById('regenModalOverlay').style.display = 'flex';
+}
+
+function closeRegenModal() {
+  document.getElementById('regenModalOverlay').style.display = 'none';
+}
+
+async function submitRegenerate() {
+  const feedback = document.getElementById('regenFeedback').value.trim();
+  if (!feedback) { alert("Tell us what you'd like different first."); return; }
+  const confirmMsg = regenScope === 'day'
+    ? "Replace this day's plan? This can't be undone."
+    : "Replace the whole trip plan? This can't be undone.";
+  if (!confirm(confirmMsg)) return;
+
+  closeRegenModal();
+  document.getElementById('regenOverlay').style.display = 'flex';
+
+  try {
+    const reqBody = {
+      scope: regenScope,
+      origin: originForRegen, destination: destinationForRegen,
+      startDate: startDateForRegen, endDate: endDateForRegen,
+      travelers: travelersForRegen, originCurrency: baseCurrency,
+      preferences: tripPreferences, feedback
+    };
+    if (regenScope === 'day') {
+      reqBody.dayIndex = regenDayIndex;
+      reqBody.currentDay = tripData.days[regenDayIndex];
+      reqBody.previousDayCity = regenDayIndex > 0 ? tripData.days[regenDayIndex - 1].city : null;
+      reqBody.nextDayCity = regenDayIndex < tripData.days.length - 1 ? tripData.days[regenDayIndex + 1].city : null;
+    }
+
+    const res = await fetch('/api/regenerate-trip', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(reqBody)
+    });
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || 'Regeneration failed');
+
+    if (regenScope === 'day') tripData.days[regenDayIndex] = data.day;
+    else tripData = data.itinerary;
+
+    document.getElementById('tripTitle').textContent = tripData.title || destinationForRegen;
+    clearTimeout(saveTimer);
+    await saveTripEdit(regenScope === 'day' ? 'day_regenerated' : 'itinerary_regenerated');
+
+    if (regenScope === 'trip') {
+      activeDay = 'all';
+      selectDay('all', -1);
+    } else {
+      renderDay(tripData.days[regenDayIndex], regenDayIndex);
+      showDayMarkers(tripData.days[regenDayIndex], regenDayIndex);
+    }
+  } catch (err) {
+    alert('Error: ' + err.message);
+  } finally {
+    document.getElementById('regenOverlay').style.display = 'none';
+  }
+}
+
 // ---- LOAD TRIP ----
 async function loadTrip() {
   const { data: { session } } = await sb.auth.getSession();
@@ -684,6 +792,13 @@ async function loadTrip() {
     myRole = collab?.role || 'viewer';
   }
   document.getElementById('shareBtn').style.display = 'inline-flex';
+  if (myRole !== 'viewer') document.getElementById('regenTripBtn').style.display = 'inline-flex';
+
+  originForRegen = trip.origin;
+  destinationForRegen = trip.destination;
+  startDateForRegen = trip.start_date;
+  endDateForRegen = trip.end_date;
+  travelersForRegen = trip.travelers;
 
   tripData = trip.itinerary;
   tripPreferences = trip.preferences || {};

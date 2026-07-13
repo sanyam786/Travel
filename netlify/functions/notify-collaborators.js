@@ -4,6 +4,8 @@ const RESEND_API_URL = "https://api.resend.com/emails";
 
 const CHANGE_COPY = {
   itinerary_edit: (actor, trip) => `${actor} updated the itinerary for "${trip}"`,
+  itinerary_regenerated: (actor, trip) => `${actor} regenerated the itinerary for "${trip}"`,
+  day_regenerated: (actor, trip) => `${actor} regenerated a day in "${trip}"`,
   collaborator_added: (actor, trip) => `${actor} joined "${trip}"`,
   collaborator_removed: (actor, trip) => `Someone was removed from "${trip}"`,
   role_changed: (actor, trip) => `A collaborator's role changed on "${trip}"`
