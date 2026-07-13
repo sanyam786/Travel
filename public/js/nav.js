@@ -80,7 +80,8 @@
   // page-specific layouts like trip.html's itinerary sidebar/map) ----
   const NAV_LINKS = [
     { href: '/dashboard.html', icon: '📊', label: 'My Trips' },
-    { href: '/plan.html', icon: '➕', label: 'Plan a Trip' }
+    { href: '/plan.html', icon: '➕', label: 'Plan a Trip' },
+    { href: '/profile.html', icon: '⚙️', label: 'Profile Settings' }
   ];
 
   function closeSidebar() {
@@ -104,14 +105,23 @@
     const brand = document.querySelector('.nav-brand');
     if (!navEl || !brand || document.getElementById('sidenavPanel')) return;
 
+    // .nav uses justify-content:space-between across its direct children — the
+    // toggle button must be grouped WITH the brand (not added as a 3rd sibling),
+    // otherwise space-between spreads all three apart evenly and the brand ends
+    // up drifting toward the middle instead of sitting tight next to the toggle.
+    const navLeft = document.createElement('div');
+    navLeft.className = 'nav-left';
+    brand.parentNode.insertBefore(navLeft, brand);
+
     const toggleBtn = document.createElement('button');
     toggleBtn.className = 'btn btn-ghost btn-sm';
     toggleBtn.id = 'sidenavToggle';
     toggleBtn.setAttribute('aria-label', 'Open navigation menu');
-    toggleBtn.style.marginRight = '4px';
     toggleBtn.textContent = '☰';
     toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
-    navEl.insertBefore(toggleBtn, brand);
+
+    navLeft.appendChild(toggleBtn);
+    navLeft.appendChild(brand);
 
     const path = window.location.pathname;
     const name = session.user.user_metadata?.full_name || session.user.email.split('@')[0];
@@ -130,7 +140,7 @@
         <a href="/dashboard.html" class="nav-brand">✈️ WanderAI</a>
         <button class="btn btn-ghost btn-sm" id="sidenavClose" aria-label="Close navigation menu">✕</button>
       </div>
-      <div class="sidenav-user">👋 ${name}</div>
+      <a href="/profile.html" class="sidenav-user">👋 ${name}</a>
       <nav class="sidenav-links">
         ${NAV_LINKS.map(l => `<a href="${l.href}" class="sidenav-link${path === l.href ? ' on' : ''}">${l.icon} ${l.label}</a>`).join('')}
       </nav>

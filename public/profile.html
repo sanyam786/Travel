@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Profile - WanderAI</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+<nav class="nav">
+  <a href="/dashboard.html" class="nav-brand">✈️ WanderAI</a>
+  <div class="nav-right">
+    <div id="notifMount"></div>
+    <div class="nav-user">
+      <div class="avatar" id="navAvatar">?</div>
+      <span id="navName" style="font-size:14px;font-weight:500"></span>
+    </div>
+    <button class="btn btn-ghost btn-sm" onclick="logout()">🚪 <span class="btn-label">Log out</span></button>
+  </div>
+</nav>
+
+<div class="page-hdr">
+  <h1>Profile settings</h1>
+  <p>Update your name and password</p>
+</div>
+
+<div class="container-sm">
+  <div class="card" style="margin-bottom:20px">
+    <h2 style="font-size:17px;font-weight:700;margin-bottom:18px">Basic details</h2>
+    <div id="profileError" class="alert alert-err" style="display:none"></div>
+    <div id="profileOk" class="alert alert-ok" style="display:none"></div>
+    <div class="form-group">
+      <label class="form-label">Full name</label>
+      <input type="text" id="fullName" class="form-input" placeholder="Your name">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Email</label>
+      <input type="email" id="profileEmail" class="form-input" disabled>
+      <div class="form-hint">Email changes aren't supported yet — contact support if you need to change it.</div>
+    </div>
+    <button class="btn btn-primary" onclick="saveProfile()" id="saveProfileBtn">Save changes</button>
+  </div>
+
+  <div class="card">
+    <h2 style="font-size:17px;font-weight:700;margin-bottom:18px">Change password</h2>
+    <div id="passError" class="alert alert-err" style="display:none"></div>
+    <div id="passOk" class="alert alert-ok" style="display:none"></div>
+    <div class="form-group">
+      <label class="form-label">New password</label>
+      <input type="password" id="newPass" class="form-input" placeholder="8+ characters">
+    </div>
+    <div class="form-group">
+      <label class="form-label">Confirm new password</label>
+      <input type="password" id="newPassConfirm" class="form-input" placeholder="8+ characters">
+    </div>
+    <button class="btn btn-primary" onclick="updatePassword()" id="updatePassBtn">Update password</button>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="/js/nav.js"></script>
+<script>
+const SUPABASE_URL = window.SUPABASE_URL || 'https://yaqzlytfwvvcygwxzdhr.supabase.co';
+const SUPABASE_ANON = window.SUPABASE_ANON || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InlhcXpseXRmd3Z2Y3lnd3h6ZGhyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM2Nzc5NzUsImV4cCI6MjA5OTI1Mzk3NX0.lQyAFpD0NbEnDpUkDrIabJ7e1aaO3gA9Kzyxq0MQmCg';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON);
+
+function showErr(el, msg) {
+  const box = document.getElementById(el);
+  box.textContent = '⚠ ' + msg;
+  box.style.display = 'flex';
+}
+function showOk(el, msg) {
+  const box = document.getElementById(el);
+  box.textContent = '✓ ' + msg;
+  box.style.display = 'flex';
+}
+function clearAlerts(prefix) {
+  document.getElementById(prefix + 'Error').style.display = 'none';
+  document.getElementById(prefix + 'Ok').style.display = 'none';
+}
+
+async function loadProfile() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { window.location.href = '/'; return; }
+  const user = session.user;
+  const name = user.user_metadata?.full_name || '';
+  document.getElementById('fullName').value = name;
+  document.getElementById('profileEmail').value = user.email;
+  document.getElementById('navAvatar').textContent = (name || user.email)[0].toUpperCase();
+  document.getElementById('navName').textContent = name || user.email.split('@')[0];
+}
+
+async function saveProfile() {
+  clearAlerts('profile');
+  const name = document.getElementById('fullName').value.trim();
+  if (!name) return showErr('profileError', 'Please enter your name.');
+  const btn = document.getElementById('saveProfileBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Saving…';
+  const { error } = await sb.auth.updateUser({ data: { full_name: name } });
+  btn.disabled = false;
+  btn.textContent = 'Save changes';
+  if (error) return showErr('profileError', error.message);
+  showOk('profileOk', 'Profile updated.');
+  document.getElementById('navName').textContent = name;
+  document.getElementById('navAvatar').textContent = name[0].toUpperCase();
+}
+
+async function updatePassword() {
+  clearAlerts('pass');
+  const pass = document.getElementById('newPass').value;
+  const confirm = document.getElementById('newPassConfirm').value;
+  if (pass.length < 8) return showErr('passError', 'Password must be at least 8 characters.');
+  if (pass !== confirm) return showErr('passError', 'Passwords do not match.');
+  const btn = document.getElementById('updatePassBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Updating…';
+  const { error } = await sb.auth.updateUser({ password: pass });
+  btn.disabled = false;
+  btn.textContent = 'Update password';
+  if (error) return showErr('passError', error.message);
+  showOk('passOk', 'Password updated.');
+  document.getElementById('newPass').value = '';
+  document.getElementById('newPassConfirm').value = '';
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  window.location.href = '/';
+}
+
+loadProfile();
+</script>
+</body>
+</html>
