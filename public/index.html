@@ -212,7 +212,10 @@ async function doSignup() {
   btn.innerHTML = '<span class="spinner"></span> Creating account…';
   const { error } = await sb.auth.signUp({
     email, password: pass,
-    options: { data: { full_name: (first + ' ' + last).trim() || email.split('@')[0] } }
+    options: {
+      data: { full_name: (first + ' ' + last).trim() || email.split('@')[0] },
+      emailRedirectTo: window.location.origin + '/dashboard.html'
+    }
   });
   if (error) { showErr(error.message); btn.disabled = false; btn.textContent = 'Create account →'; }
   else { showOk('Account created! Check your email to confirm, then log in.'); btn.disabled = false; btn.textContent = 'Create account →'; }

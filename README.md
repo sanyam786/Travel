@@ -83,6 +83,16 @@ In your Supabase project:
 2. Under **Email**, make sure **Enable email sign-ups** is ON
 3. Optional: disable "Confirm email" for easier testing (Authentication → Settings → uncheck "Enable email confirmations")
 
+### Step 7b — Point auth emails at your real site, not localhost
+Signup-confirmation and password-reset emails use your Supabase project's **Site URL** as their
+link target whenever the specific redirect wasn't explicitly allow-listed. New Supabase projects
+default this to `http://localhost:3000` — if you skip this step, every confirmation/reset email
+will link to `localhost` no matter what domain your app is actually deployed on.
+
+In your Supabase project, go to **Authentication → URL Configuration**:
+- **Site URL** → set to your deployed app's URL, e.g. `https://your-app.netlify.app` (or your custom domain). **Not** your Supabase project URL (`https://xxxx.supabase.co`) — that's your database's API endpoint, not where the app is hosted.
+- **Redirect URLs** → add `https://your-app.netlify.app/**` (the `**` wildcard covers `/dashboard.html`, `/reset-password.html`, `/join`, etc. in one entry). Add your local dev URL too (e.g. `http://localhost:8787/**`) if you want working links while testing locally.
+
 ### Step 8 — Redeploy
 After updating the HTML files, push to GitHub (or re-drag to Netlify). Your app is live!
 
