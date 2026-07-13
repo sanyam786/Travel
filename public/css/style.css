@@ -204,6 +204,9 @@ h1,h2,h3,h4{letter-spacing:-.02em}
 .sidenav-link{display:flex;align-items:center;gap:10px;width:100%;padding:11px 14px;border-radius:var(--r-sm);font-size:14px;font-weight:600;color:var(--text);background:transparent;border:none;cursor:pointer;font-family:inherit;text-align:left;transition:all .18s var(--ease)}
 .sidenav-link:hover{background:var(--card-2)}
 .sidenav-link.on{background:var(--blue-l);color:var(--blue)}
+.sidenav-section-label{padding:14px 16px 4px;font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);flex-shrink:0}
+.sidenav-trip{font-weight:500;font-size:13px}
+.sidenav-trip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .sidenav-logout{margin:10px;margin-top:auto;flex-shrink:0}
 .sidenav-logout:hover{background:rgba(248,113,113,.12);color:var(--red)}
 

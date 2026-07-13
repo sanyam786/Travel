@@ -28,6 +28,11 @@
   to = "/accept-invite.html"
   status = 200
 
+[[redirects]]
+  from = "/reset-password"
+  to = "/reset-password.html"
+  status = 200
+
 [[headers]]
   for = "/*"
   [headers.values]

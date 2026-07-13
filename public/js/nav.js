@@ -134,6 +134,10 @@
       <nav class="sidenav-links">
         ${NAV_LINKS.map(l => `<a href="${l.href}" class="sidenav-link${path === l.href ? ' on' : ''}">${l.icon} ${l.label}</a>`).join('')}
       </nav>
+      <div class="sidenav-section-label">Recent trips</div>
+      <nav class="sidenav-links sidenav-trips" id="sidenavTrips">
+        <div style="padding:10px 14px;font-size:13px;color:var(--muted)">Loading…</div>
+      </nav>
       <button class="sidenav-link sidenav-logout" id="sidenavLogout">🚪 Log out</button>`;
     document.body.appendChild(panel);
 
@@ -144,6 +148,24 @@
     });
     panel.addEventListener('click', (e) => e.stopPropagation());
     document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
+
+    loadSidenavTrips();
+  }
+
+  async function loadSidenavTrips() {
+    const mount = document.getElementById('sidenavTrips');
+    if (!mount) return;
+    const { data, error } = await sbNav.from('trips')
+      .select('id,title,destination,created_at')
+      .order('created_at', { ascending: false })
+      .limit(8);
+    if (error || !data || !data.length) {
+      mount.innerHTML = '<div style="padding:10px 14px;font-size:13px;color:var(--muted)">No trips yet</div>';
+      return;
+    }
+    const params = new URLSearchParams(window.location.search);
+    const activeId = window.location.pathname === '/trip.html' ? params.get('id') : null;
+    mount.innerHTML = data.map(t => `<a href="/trip.html?id=${t.id}" class="sidenav-link sidenav-trip${t.id === activeId ? ' on' : ''}">✈️ <span>${t.title || t.destination}</span></a>`).join('');
   }
 
   (async () => {

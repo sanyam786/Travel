@@ -6,12 +6,6 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["-y", "http-server", "public", "-p", "8787", "-c-1"],
       "port": 8787
-    },
-    {
-      "name": "scratch-preview",
-      "runtimeExecutable": "npx",
-      "runtimeArgs": ["-y", "http-server", "/private/tmp/claude-501/-Users-sanyamlodha-Personal-Sanyam-Claude-Travel/6ccd37b5-8cfe-4ef5-b418-af244205f741/scratchpad", "-p", "8788", "-c-1"],
-      "port": 8788
     }
   ]
 }

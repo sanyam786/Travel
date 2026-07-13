@@ -69,12 +69,28 @@
           <input type="email" id="loginEmail" class="form-input" placeholder="you@example.com" required>
         </div>
         <div class="form-group">
-          <label class="form-label">Password</label>
+          <label class="form-label" style="display:flex;justify-content:space-between;align-items:center">
+            Password
+            <a href="#" onclick="showForgotForm();return false" style="font-size:12px;font-weight:600;color:var(--blue)">Forgot password?</a>
+          </label>
           <input type="password" id="loginPass" class="form-input" placeholder="••••••••" required>
         </div>
         <button class="btn btn-primary btn-full btn-lg" onclick="doLogin()" id="loginBtn">Log in</button>
         <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">
           No account? <a href="#" onclick="switchTab('signup')" style="color:var(--blue);font-weight:600">Sign up free</a>
+        </p>
+      </div>
+
+      <!-- Forgot password form -->
+      <div id="forgotForm" style="display:none">
+        <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Enter your account email and we'll send you a link to reset your password.</p>
+        <div class="form-group">
+          <label class="form-label">Email</label>
+          <input type="email" id="forgotEmail" class="form-input" placeholder="you@example.com" required>
+        </div>
+        <button class="btn btn-primary btn-full btn-lg" onclick="doForgotPassword()" id="forgotBtn">Send reset link</button>
+        <p style="text-align:center;margin-top:14px;font-size:13px;color:var(--muted)">
+          <a href="#" onclick="backToLogin();return false" style="color:var(--blue);font-weight:600">← Back to log in</a>
         </p>
       </div>
 
@@ -126,10 +142,39 @@ function showAuth(tab) {
 function switchTab(tab) {
   document.getElementById('loginForm').style.display = tab === 'login' ? 'block' : 'none';
   document.getElementById('signupForm').style.display = tab === 'signup' ? 'block' : 'none';
+  document.getElementById('forgotForm').style.display = 'none';
   document.getElementById('tabLogin').classList.toggle('on', tab === 'login');
   document.getElementById('tabSignup').classList.toggle('on', tab === 'signup');
   document.getElementById('authError').style.display = 'none';
   document.getElementById('authOk').style.display = 'none';
+}
+
+function showForgotForm() {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('signupForm').style.display = 'none';
+  document.getElementById('forgotForm').style.display = 'block';
+  document.getElementById('authError').style.display = 'none';
+  document.getElementById('authOk').style.display = 'none';
+}
+
+function backToLogin() {
+  document.getElementById('forgotForm').style.display = 'none';
+  switchTab('login');
+}
+
+async function doForgotPassword() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  if (!email) return showErr('Please enter your email.');
+  const btn = document.getElementById('forgotBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Sending…';
+  const { error } = await sb.auth.resetPasswordForEmail(email, {
+    redirectTo: window.location.origin + '/reset-password.html'
+  });
+  btn.disabled = false;
+  btn.textContent = 'Send reset link';
+  if (error) return showErr(error.message);
+  showOk('Check your email for a password reset link.');
 }
 
 function showErr(msg) {
