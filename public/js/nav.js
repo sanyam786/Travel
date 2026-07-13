@@ -76,10 +76,81 @@
       .subscribe();
   }
 
+  // ---- SIDEBAR (hideable app navigation, overlay drawer so it never reflows
+  // page-specific layouts like trip.html's itinerary sidebar/map) ----
+  const NAV_LINKS = [
+    { href: '/dashboard.html', icon: '📊', label: 'My Trips' },
+    { href: '/plan.html', icon: '➕', label: 'Plan a Trip' }
+  ];
+
+  function closeSidebar() {
+    const panel = document.getElementById('sidenavPanel');
+    const backdrop = document.getElementById('sidenavBackdrop');
+    if (panel) panel.classList.remove('open');
+    if (backdrop) backdrop.classList.remove('open');
+  }
+
+  function toggleSidebar() {
+    const panel = document.getElementById('sidenavPanel');
+    const backdrop = document.getElementById('sidenavBackdrop');
+    if (!panel) return;
+    const opening = !panel.classList.contains('open');
+    panel.classList.toggle('open', opening);
+    backdrop.classList.toggle('open', opening);
+  }
+
+  function mountSidebar(session) {
+    const navEl = document.querySelector('.nav');
+    const brand = document.querySelector('.nav-brand');
+    if (!navEl || !brand || document.getElementById('sidenavPanel')) return;
+
+    const toggleBtn = document.createElement('button');
+    toggleBtn.className = 'btn btn-ghost btn-sm';
+    toggleBtn.id = 'sidenavToggle';
+    toggleBtn.setAttribute('aria-label', 'Open navigation menu');
+    toggleBtn.style.marginRight = '4px';
+    toggleBtn.textContent = '☰';
+    toggleBtn.addEventListener('click', (e) => { e.stopPropagation(); toggleSidebar(); });
+    navEl.insertBefore(toggleBtn, brand);
+
+    const path = window.location.pathname;
+    const name = session.user.user_metadata?.full_name || session.user.email.split('@')[0];
+
+    const backdrop = document.createElement('div');
+    backdrop.id = 'sidenavBackdrop';
+    backdrop.className = 'sidenav-backdrop';
+    backdrop.addEventListener('click', closeSidebar);
+    document.body.appendChild(backdrop);
+
+    const panel = document.createElement('div');
+    panel.id = 'sidenavPanel';
+    panel.className = 'sidenav';
+    panel.innerHTML = `
+      <div class="sidenav-hdr">
+        <a href="/dashboard.html" class="nav-brand">✈️ WanderAI</a>
+        <button class="btn btn-ghost btn-sm" id="sidenavClose" aria-label="Close navigation menu">✕</button>
+      </div>
+      <div class="sidenav-user">👋 ${name}</div>
+      <nav class="sidenav-links">
+        ${NAV_LINKS.map(l => `<a href="${l.href}" class="sidenav-link${path === l.href ? ' on' : ''}">${l.icon} ${l.label}</a>`).join('')}
+      </nav>
+      <button class="sidenav-link sidenav-logout" id="sidenavLogout">🚪 Log out</button>`;
+    document.body.appendChild(panel);
+
+    document.getElementById('sidenavClose').addEventListener('click', closeSidebar);
+    document.getElementById('sidenavLogout').addEventListener('click', async () => {
+      await sbNav.auth.signOut();
+      window.location.href = '/';
+    });
+    panel.addEventListener('click', (e) => e.stopPropagation());
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeSidebar(); });
+  }
+
   (async () => {
     const { data: { session } } = await sbNav.auth.getSession();
     if (!session) return;
     await sbNav.rpc('claim_invites');
     mountBell(session.user.id);
+    mountSidebar(session);
   })();
 })();
